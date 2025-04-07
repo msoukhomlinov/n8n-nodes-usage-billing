@@ -1,4 +1,9 @@
 ---
+description: Before creating new files, folders, functions or code implementations, perform thorough codebase searches to prevent duplication. Search for existing files, similar implementations, related functions, and reusable code. Use workspace search features to scan for matching filenames, function signatures, class definitions, and code patterns. Consider extending or refactoring existing solutions rather than creating new ones. This helps maintain DRY principles and code consistency.
+globs: 
+alwaysApply: false
+---
+---
 description: 
 globs: 
 alwaysApply: true

@@ -1,3 +1,15 @@
+# General Rules
+- Use Australian English spelling and conventions
+- When trying to run commands (Agent or Compose), remember that you are on Windows with PowerShell Core
+
+# MCP Rules
+Search the web using Brave web search using the MCP tool first to see what people are saying before fixing anything that could be quite technical.
+Use Code and Issue Researcher to assist with the following to enhance insight and learn the latest information/fixes:
+Sequential thinking - for all tasks
+Puppeteer - web browsing or web scraping
+Server memory - for storing and refrerencing key information across moderate to complex work
+
+For code indentation, uou must use spaces instead of tabs
 # Instructions
 
 During you interaction with the user, if you find anything reusable in this project (e.g. version of a library, model name), especially about a fix to a mistake you made or a correction you received, you should take note in the `Lessons` section in the `.cursorrules` file so you will not make the same mistake again.
@@ -11,69 +23,6 @@ Especially when you finished a milestone, it will help to improve your depth of 
 The goal is to help you maintain a big picture as well as the progress of the task. Always refer to the Scratchpad when you plan the next step.
 
 # Documentation Files
-
-## Autotask API Documentation
-Located in `/docs/autotask`.
-
-### About REST API
-- `about-rest-api/01.rest-api-latency.md` - Performance and latency considerations for API
-- `about-rest-api/02.recurring-service-contract-entity-relationships.md` - Contract relationships guide
-- `about-rest-api/03.security-and-auth.md` - Authentication and security protocols
-- `about-rest-api/04.api-best-practices.md` - Best practices for API implementation
-
-### API Calls
-- `api-calls/01.introduction-rest-api.md` - Core concepts and getting started guide
-- `api-calls/02.find-resource-and-child-access-urls.md` - Resource URL navigation guide
-- `api-calls/03.basic-query-calls.md` - Fundamental query operations tutorial
-- `api-calls/04.advanced-query-calls.md` - Complex query patterns and features
-- `api-calls/05.entityInformation.md` - Entity information retrieval guide
-- `api-calls/06.querying-user-zone-information.md` - User zone data access guide
-- `api-calls/07.creating-via-post.md` - Resource creation via POST methods
-- `api-calls/08.updating-via-patch.md` - Partial updates using PATCH
-- `api-calls/09.updating-via-put.md` - Full updates using PUT
-- `api-calls/10.deleting.md` - Resource deletion guide
-- `api-calls/11.attachments.md` - Handling file attachments
-
-### API Entities
-- `api-entities/01.rest-api-resources.md` - Available API resources overview
-- `api-entities/02.UserDefinedFieldDefinitions.md` - Custom field definitions guide
-- `api-entities/03.UserDefinedFieldListItems.md` - Custom field list items reference
-- `api-entities/04.User-defined fields.md` - Working with custom fields
-
-### Webhooks
-- `webhooks/01.webhooks-intro.md` - Introduction to webhook functionality
-- `webhooks/02.creating-webhook-overview.md` - Webhook creation guide
-- `webhooks/03.EntityName-Webhooks.md` - Entity-specific webhook setup
-- `webhooks/04.EntityName-WebhookFields.md` - Webhook field configuration
-- `webhooks/05.EntityName-WebhookUdfFields.md` - Custom fields in webhooks
-- `webhooks/06.EntityName-WebhookExcludedResources.md` - Resource exclusion guide
-- `webhooks/07.Secret-key-ayload-verification.md` - Webhook security verification
-- `webhooks/08.Webhooks-error-handling.md` - Error handling strategies
-- `webhooks/09.WebhookEventErrorLogs.md` - Event error logging reference
-
-## n8n Integration Documentation
-Located in `/docs/n8n`
-### Reference
-- `n8n/reference/01.node-ui-elements.md` - UI component guidelines
-- `n8n/reference/02.code-standards.md` - Coding standards and practices
-- `n8n/reference/03.node-file-structure.md` - Node architecture overview
-- `n8n/reference/04.node-codex-files.md` - Node documentation format
-- `n8n/reference/05.credentials-files.md` - Credential management guide
-- `n8n/reference/06.http-helpers.md` - HTTP request helper utilities
-- `n8n/reference/07.paired-items.md` - Working with paired data items
-
-### Base Files
-- `n8n/reference/base-files/01.base-files.md` - Core file structure guide
-- `n8n/reference/base-files/02.structure.md` - Base architecture overview
-- `n8n/reference/base-files/03.standard-parameters.md` - Parameter configuration guide
-- `n8n/reference/base-files/04.declarative-style-parameters.md` - Declarative parameter setup
-- `n8n/reference/base-files/05.programmatic-style-parameters.md` - Programmatic parameter setup
-- `n8n/reference/base-files/06.programmatic-style-execute-method.md` - Execution method guide
-
-### Planning
-- `n8n/reference/plan/01.node-types.md` - Node type specifications
-- `n8n/reference/plan/02.choose-node-method.md` - Node method selection guide
-- `n8n/reference/plan/03.node-ui-design.md` - UI design principles
 
 # MCP Server Tools Usage
 
@@ -159,103 +108,58 @@ Located in `/docs/n8n`
 
 # Lessons
 
-1. Parameter Handling
-   - Always use case-insensitive parameter name comparison
-   - Centralize parameter name normalization logic
-   - Handle ID field variations consistently (id, ID, Id)
-   - Consider creating utility functions for common parameter operations
-   - Document expected parameter formats in code comments
-   - Check resource mapper schema for UI field state (removed flag)
-   - Include all non-removed fields in updates, even if empty
-   - Validate operation-specific required fields
-   - Check IsQueryable and IsReadOnly flags before operations
-   - Handle UDF fields consistently across operations
-
-2. Parent-Child Relationships
-   - Always specify parent type when initializing operations for child entities
-   - Use consistent casing for parent ID parameters (e.g., projectID, companyID)
-   - Handle parent-child URL construction in a centralized way
-   - Validate both parent and child IDs before making API calls
-   - Respect HTTP method requirements for parent context
-   - Handle association updates via PATCH with correct payload format
-   - Support both direct and indirect parent relationships
-   - Validate parent chain for nested relationships
-
-3. URL Construction
-   - Centralize URL building logic
-   - Handle pluralization consistently
-   - Support various URL patterns (standard, child, query, UDF)
-   - Maintain backward compatibility while improving code structure
-   - Handle operation-specific URL patterns
-   - Support both parent-less and parent-required endpoints
-   - Implement consistent association endpoint patterns
-   - Handle UDF-specific endpoint variations
-   - ALWAYS use plural form for subname in entity definitions (e.g., 'Notes' not 'Note')
-   - Verify endpoint patterns match proven implementations (e.g., Tasks)
-   - Parent-child endpoints must follow pattern: /Parents/{parentId}/SubnameS/{id}
-   - Direct query endpoints follow pattern: /EntityName/query
-
-4. Error Handling
-   - Provide clear error messages with attempted parameter variations
-   - Include entity context in error messages
-   - Use consistent error templates
-   - Log debugging information when needed
-   - Include operation-specific validation errors
-   - Handle rate limiting and pagination errors
-   - Provide clear association management error messages
-   - Document API-specific error codes and meanings
-
-5. Resource Mapper Handling
-   - Check schema.removed flag to determine active fields
-   - Include all non-removed fields in updates
-   - Use empty string for fields without values
-   - Preserve UI field state during updates
-   - Support EntityDefinition endpoint integration
-   - Handle operation-specific field requirements
-   - Manage association field mappings
-   - Support UDF field definitions
-
-6. API Operation Patterns
-   - Respect HTTP method requirements per operation type
-   - Handle parent context requirements correctly
-   - Support proper association management patterns
-   - Implement efficient pagination and bulk operations
-   - Handle rate limiting and caching appropriately
-   - Support all required query patterns
-   - IMPORTANT: Check API documentation and entity metadata for supported operations
-   - Some entities may intentionally not support deletion (e.g., Project Phases) to maintain data integrity
-   - Don't assume all CRUD operations are available for every entity
-   - Use correct endpoints for field information:
-     * Standard fields: /entityInformation/fields
-     * UDF fields: /entityInformation/userDefinedFields
-     * Entity metadata: /entityInformation
-   - Handle nested response structures correctly:
-     * Entity info is nested under "info" key: { "info": { ... } }
-     * Fields are nested under "fields" key: { "fields": [ ... ] }
-     * Always validate response structure before accessing properties
-
-7. Advanced Query Operations
-   - Always validate JSON filter structure before processing
-   - Support all Autotask API filter operators (eq, noteq, gt, gte, lt, lte, contains, beginsWith, endsWith, exist, notExist, in, notIn, and, or)
-   - Handle pagination limits (max 50 pages at a time)
-   - Include Id field when results exceed 500 records
-   - Support MaxRecords range of 1-500 per page
-   - Maintain pagination context for next/previous page URLs
-   - Don't modify MaxRecords or IncludeFields during pagination
-   - Consider using strong filters to improve performance
-   - Handle UDF fields in field inclusion
-   - Document pagination limitations in code comments
-
-8. Advanced Query Operation Patterns
-   - Always validate JSON filter structure before processing
-   - Support all Autotask API filter operators
-   - Handle pagination limits consistently (max 50 pages, 500 records per page)
-   - Validate operator compatibility with field types
-   - Support nested logical conditions (and/or)
-   - Implement robust error handling with clear messages
-   - Follow entity info operation pattern for common operations
-   - Use unified resource operation helper for consistency
-   - Support UDF fields in advanced queries
-   - Document filter structure and limitations
-
 # Scratchpad
+
+## n8n-nodes-billing-calculator Project - Project Phases Progress
+
+### Completed Phases
+
+#### Phase 1: Core Framework ✅
+- [X] Implemented basic node structure
+- [X] Created two operations: Process Billing and Validate Configuration
+- [X] Implemented schema inference from examples
+- [X] Created simple matching engine
+- [X] Implemented basic validation
+- [X] Fixed linter errors
+- [X] Addressed import path issues with interfaces
+
+#### Phase 2: Enhanced User Experience ✅
+- [X] Created ResourceMapperUtils.ts for resource mapper functionality
+- [X] Enhanced SchemaInterfaces.ts with new interface types
+- [X] Updated BillingCalculator.node.ts with improved match configuration
+- [X] Added output field mapping with multiple source types
+- [X] Implemented schema visualization
+- [X] Enhanced validation feedback with different severity levels
+- [X] Addressed linter errors and execution context issues
+
+### Next Phase
+
+#### Phase 3: Advanced Features (Upcoming)
+- [ ] Implement multi-key matching
+- [ ] Add custom calculation formulas
+- [ ] Optimize batch processing for large datasets
+- [ ] Create debugging tools
+- [ ] Add comprehensive documentation
+- [ ] Create test workflows with samples
+
+### Implementation Notes
+
+1. **Resource Mapper Implementation:**
+   - Used `fixedCollection` parameter with custom UI for visual mapping
+   - Adapted output fields to support multiple source types
+   - Created utility functions to convert between schemas and resource mapper options
+
+2. **Schema Visualization:**
+   - Implemented a standalone function for schema visualization
+   - Added highlighting for match fields
+   - Integrated visualization with validation output
+
+3. **Enhanced Validation:**
+   - Created interfaces for warnings and errors with severity levels
+   - Added field-level validation
+   - Improved error messages with specific context
+
+4. **Next Steps:**
+   - Test the node with real-world examples
+   - Gather feedback on UX improvements
+   - Begin planning for Phase 3 features

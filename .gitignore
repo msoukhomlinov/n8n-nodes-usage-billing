@@ -30,4 +30,7 @@ logs/
 
 # Testing
 coverage/
-.nyc_output/ 
+.nyc_output/
+
+.vscode/
+.docs/

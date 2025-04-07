@@ -1,0 +1,56 @@
+{
+  "name": "n8n-nodes-billing-calculator",
+  "version": "0.1.0",
+  "description": "n8n node for calculating billing based on price lists and usage data",
+  "keywords": [
+    "n8n-community-node-package",
+    "billing",
+    "calculator"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/msoukhomlinov/n8n-nodes-billing-calculator",
+  "author": {
+    "name": "Max Soukhomlinov",
+    "email": "maxs@intellectit.com.au"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/msoukhomlinov/n8n-nodes-billing-calculator.git"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc && gulp build:icons",
+    "dev": "tsc --watch",
+    "format": "prettier --write \"**/*.ts\"",
+    "lint": "eslint --quiet --fix --ext .ts .",
+    "prepare": "npm run build",
+    "test": "jest"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [],
+    "nodes": [
+      "dist/nodes/BillingCalculator/BillingCalculator.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.6",
+    "@types/jest": "^29.5.0",
+    "@types/node": "^18.11.18",
+    "@typescript-eslint/eslint-plugin": "^5.36.2",
+    "@typescript-eslint/parser": "^5.36.2",
+    "eslint": "^8.23.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "gulp": "^4.0.2",
+    "jest": "^29.5.0",
+    "n8n-core": "^0.162.0",
+    "n8n-workflow": "^0.149.0",
+    "prettier": "^2.7.1",
+    "ts-jest": "^29.1.0",
+    "typescript": "~4.9.5"
+  }
+}

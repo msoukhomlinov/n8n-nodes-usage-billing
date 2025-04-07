@@ -32,5 +32,5 @@ logs/
 coverage/
 .nyc_output/
 
-.vscode/
-.docs/
+# .vscode/
+# .docs/

@@ -132,15 +132,75 @@ The goal is to help you maintain a big picture as well as the progress of the ta
 - [X] Enhanced validation feedback with different severity levels
 - [X] Addressed linter errors and execution context issues
 
-### Next Phase
+### Current Phase
 
-#### Phase 3: Advanced Features (Upcoming)
-- [ ] Implement multi-key matching
-- [ ] Add custom calculation formulas
-- [ ] Optimize batch processing for large datasets
-- [ ] Create debugging tools
+#### Phase 3: Advanced Features (In Progress)
+- [X] Implement multi-key matching
+  - [X] Create an enhanced matching engine in MatchingUtils.ts
+  - [X] Extend ResourceMapperMatchConfig to support multiple field mappings
+  - [X] Update indexPriceList to use composite keys
+  - [X] Update UI in BillingCalculator.node.ts to support multiple field selections
+
+- [X] Add custom calculation formulas
+  - [X] Create FormulaUtils.ts for formula parsing and evaluation
+  - [X] Implement basic arithmetic operations
+  - [X] Support variables from both price list and usage records
+  - [X] Add validation for formula correctness
+
+- [X] Optimize batch processing for large datasets
+  - [X] Create chunking mechanism for processing large datasets
+  - [X] Implement progress reporting during execution
+  - [X] Add memory optimization for large price lists
+  - [X] Create configurable error handling options
+
+- [X] Create debugging tools
+  - [X] Add detailed logging options
+  - [X] Create diagnostic output with match details
+  - [X] Implement visualization of data flow
+
 - [ ] Add comprehensive documentation
+  - Create usage examples in README.md
+  - Add inline documentation for complex functions
+  - Create an overview document for architecture
+
 - [ ] Create test workflows with samples
+  - Create sample datasets for testing
+  - Develop test workflows to validate features
+  - Write automated tests
+
+### Implementation Plan for Phase 3
+
+1. **Multi-key matching (first priority):**
+   - Update MatchingUtils.ts to support composite keys
+   - Extend findMatch function to handle multiple match fields
+   - Update UI in BillingCalculator.node.ts to support multiple field selections
+   - Create helper functions to handle multi-field matching
+
+2. **Custom calculation formulas:**
+   - Create FormulaUtils.ts with formula parser
+   - Implement basic arithmetic operations
+   - Add support for common functions (SUM, AVG, MIN, MAX)
+   - Create a validation function for formula syntax
+
+3. **Batch processing optimization:**
+   - Implement chunk-based processing in BillingCalculator.node.functions.ts
+   - Add progress indicators in the node execution
+   - Optimize memory usage with iterators and generators
+
+4. **Debugging tools:**
+   - Add logging levels in a new DebugUtils.ts
+   - Create visualization helpers for match and calculation processes
+   - Implement detailed error reporting
+
+5. **Documentation and examples:**
+   - Update README.md with comprehensive examples
+   - Create example workflows in the .docs directory
+   - Document best practices and limitations
+
+6. **Testing:**
+   - Create test datasets in a new samples directory
+   - Implement automated tests for core functionality
+   - Create integration tests for complete workflows
 
 ### Implementation Notes
 
@@ -159,7 +219,31 @@ The goal is to help you maintain a big picture as well as the progress of the ta
    - Added field-level validation
    - Improved error messages with specific context
 
-4. **Next Steps:**
-   - Test the node with real-world examples
-   - Gather feedback on UX improvements
-   - Begin planning for Phase 3 features
+4. **Multi-key Matching:**
+   - Implemented support for multiple match fields with composite keys
+   - Enhanced UI to allow selection of multiple fields
+   - Ensured backward compatibility with single-key matching
+   - Added validation for missing match fields
+
+5. **Custom Calculation Formulas:**
+   - Implemented formula parser and evaluator with support for variables
+   - Added support for common math functions and operations
+   - Enhanced UI for formula editing with validation
+   - Added formula transformer to handle convenience variables
+
+6. **Batch Processing Optimization:**
+   - Created chunking mechanism for large datasets
+   - Implemented progress reporting for long-running operations
+   - Added configurable error handling options
+   - Optimized memory usage for large price lists
+
+7. **Debugging Tools:**
+   - Created DebugUtils.ts with logging functions at different levels
+   - Implemented diagnostic data collection for matches and formulas
+   - Added data flow visualization for debugging
+   - Created detailed record-level diagnostics
+
+8. **Next Steps:**
+   - Documentation and examples are next priority
+   - Will create comprehensive usage examples and a project overview
+   - Will implement test workflows with sample datasets

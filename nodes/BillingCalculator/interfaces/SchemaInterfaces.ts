@@ -1,4 +1,11 @@
 import type { IDataObject } from 'n8n-workflow';
+import type { IDiagnosticInfo } from '../utils/DebugUtils';
+
+// Custom interface for execution functions with log capability
+interface IExecutionFunctionsWithLog {
+  log?: (level: number, message: string, meta?: object) => void;
+  getNode?: () => { name: string };
+}
 
 /**
  * Core interfaces for schema management
@@ -46,6 +53,17 @@ export interface MatchConfig {
   usageField: string;
   allowMultipleMatches: boolean;
   defaultOnNoMatch?: string;
+  multiKeyMatch?: boolean;
+  priceListFields?: string[];
+  usageFields?: string[];
+  findMatch?: (
+    usageRecord: UsageRecord,
+    priceIndex: Map<string, PriceListItem[]> | PriceListItem[],
+    matchConfig: MatchConfig,
+    diagnosticInfo?: IDiagnosticInfo,
+    logLevel?: number,
+    execFunctions?: IExecutionFunctionsWithLog,
+  ) => MatchResult;
 }
 
 /**

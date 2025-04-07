@@ -1,7 +1,6 @@
-import type { MatchConfig, MatchResult, Schema, UsageRecord, PriceListItem } from '../interfaces';
+import type { MatchConfig, Schema, UsageRecord, PriceListItem } from '../interfaces';
 import { validateObjectAgainstSchema } from './SchemaUtils';
 import { findMatch, indexPriceList } from './MatchingUtils';
-import type { IDataObject } from 'n8n-workflow';
 
 /**
  * Validates match configuration

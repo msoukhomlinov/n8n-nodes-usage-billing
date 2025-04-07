@@ -4,22 +4,15 @@ import type {
   INodeTypeDescription,
   IExecuteFunctions,
   INodeExecutionData,
+  IDataObject,
 } from 'n8n-workflow';
-import type {
-  MatchConfig,
-  OutputConfig,
-  ResourceMapperMatchConfig,
-  ResourceMapperOutputConfig,
-  Schema,
-  SchemaVisualization,
-} from './interfaces/SchemaInterfaces';
+import type { MatchConfig, OutputConfig, Schema } from './interfaces/SchemaInterfaces';
+import type { BatchProcessingOptions } from './utils';
 import { processBilling, validateConfiguration } from './BillingCalculator.node.functions';
 import {
   inferSchemaFromExample,
-  createMatchResourceMapper,
-  createOutputResourceMapper,
   resourceMapperToMatchConfig,
-  schemaToResourceMapperOptions,
+  DEFAULT_BATCH_OPTIONS,
 } from './utils';
 
 /**
@@ -36,14 +29,28 @@ export function createSchemaVisualization(
 
   const priceFieldsText = priceListSchema.fields
     .map((f) => {
-      const isMatch = f.name === matchConfig.priceListField;
+      let isMatch = false;
+
+      if (matchConfig.multiKeyMatch && matchConfig.priceListFields) {
+        isMatch = matchConfig.priceListFields.includes(f.name);
+      } else {
+        isMatch = f.name === matchConfig.priceListField;
+      }
+
       return `${isMatch ? '→ ' : '  '}${f.name} (${f.type})${f.required ? ' *required' : ''}`;
     })
     .join('\n');
 
   const usageFieldsText = usageSchema.fields
     .map((f) => {
-      const isMatch = f.name === matchConfig.usageField;
+      let isMatch = false;
+
+      if (matchConfig.multiKeyMatch && matchConfig.usageFields) {
+        isMatch = matchConfig.usageFields.includes(f.name);
+      } else {
+        isMatch = f.name === matchConfig.usageField;
+      }
+
       return `${isMatch ? '→ ' : '  '}${f.name} (${f.type})${f.required ? ' *required' : ''}`;
     })
     .join('\n');
@@ -350,7 +357,13 @@ export class BillingCalculator implements INodeType {
                             source: ['calculated'],
                           },
                         },
+                        typeOptions: {
+                          alwaysOpenEditWindow: true,
+                        },
                         description: 'Formula to calculate the field value',
+                        hint: 'Available variables: usage (or usage.field), price.field. Available functions: MIN(), MAX(), SUM(), AVG(), ROUND().',
+                        placeholder:
+                          'E.g., usage * price.unitPrice or usage.quantity * price.rate * (1 - price.discount)',
                       },
                     ],
                   },
@@ -360,6 +373,37 @@ export class BillingCalculator implements INodeType {
             ],
           },
         ],
+      },
+
+      // Add a new field for formula help
+      {
+        displayName: 'Formula Syntax Help',
+        name: 'formulaHelp',
+        type: 'notice',
+        default: `
+<p>You can reference fields from the usage record using <code>usage.fieldName</code> and from the price list item using <code>price.fieldName</code>.</p>
+<p>The special variable <code>usage</code> is shorthand for <code>usage.usage</code> and <code>unitPrice</code> is shorthand for <code>price.unitPrice</code>.</p>
+<p><strong>Examples:</strong></p>
+<ul>
+  <li>Basic: <code>usage * unitPrice</code></li>
+  <li>With discount: <code>usage * unitPrice * (1 - price.discountRate)</code></li>
+  <li>Tiered pricing: <code>usage <= 10 ? usage * price.tier1Rate : 10 * price.tier1Rate + (usage - 10) * price.tier2Rate</code></li>
+  <li>With rounding: <code>ROUND(usage * unitPrice, 2)</code></li>
+</ul>
+<p><strong>Available Functions:</strong></p>
+<ul>
+  <li><code>MIN(value1, value2, ...)</code> - Returns the minimum value</li>
+  <li><code>MAX(value1, value2, ...)</code> - Returns the maximum value</li>
+  <li><code>SUM(value1, value2, ...)</code> - Returns the sum of values</li>
+  <li><code>AVG(value1, value2, ...)</code> - Returns the average of values</li>
+  <li><code>ROUND(value, precision)</code> - Rounds to specified precision</li>
+</ul>
+`,
+        displayOptions: {
+          show: {
+            source: ['calculated'],
+          },
+        },
       },
 
       // Input Data Section
@@ -450,6 +494,170 @@ export class BillingCalculator implements INodeType {
           },
         ],
       },
+
+      // Advanced Options for Phase 3
+      {
+        displayName: 'Advanced Options',
+        name: 'advancedOptions',
+        type: 'collection',
+        placeholder: 'Add Option',
+        default: {},
+        options: [
+          {
+            name: 'batchProcessing',
+            displayName: 'Batch Processing',
+            type: 'collection',
+            placeholder: 'Add Batch Processing Option',
+            default: {},
+            options: [
+              {
+                displayName: 'Enable Batch Processing',
+                name: 'enabled',
+                type: 'boolean',
+                default: false,
+                description: 'Process records in batches for improved performance',
+              },
+              {
+                displayName: 'Batch Size',
+                name: 'batchSize',
+                type: 'number',
+                default: 100,
+                description: 'Number of records to process in each batch',
+                displayOptions: {
+                  show: {
+                    enabled: [true],
+                  },
+                },
+              },
+              {
+                displayName: 'Report Progress',
+                name: 'reportProgress',
+                type: 'boolean',
+                default: true,
+                description: 'Show progress updates during processing',
+                displayOptions: {
+                  show: {
+                    enabled: [true],
+                  },
+                },
+              },
+            ],
+          },
+          {
+            name: 'errorHandling',
+            displayName: 'Error Handling',
+            values: [
+              {
+                displayName: 'On Batch Error',
+                name: 'onBatchError',
+                type: 'options',
+                options: [
+                  {
+                    name: 'Stop All Processing',
+                    value: 'stopAll',
+                    description: 'Stop processing if any batch encounters an error',
+                  },
+                  {
+                    name: 'Skip Batch and Continue',
+                    value: 'skipBatch',
+                    description: 'Skip the failing batch and continue with the next one',
+                  },
+                  {
+                    name: 'Process Individual Records',
+                    value: 'processIndividual',
+                    description: 'Fall back to individual record processing for the failing batch',
+                  },
+                ],
+                default: 'stopAll',
+              },
+            ],
+          },
+          {
+            name: 'memoryOptimization',
+            displayName: 'Memory Optimization',
+            values: [
+              {
+                displayName: 'Optimize Index',
+                name: 'optimizeIndex',
+                type: 'boolean',
+                default: true,
+                description: 'Only store required fields in memory for improved performance',
+              },
+            ],
+          },
+          {
+            name: 'debugging',
+            displayName: 'Debugging Options',
+            type: 'collection',
+            placeholder: 'Add Debugging Option',
+            default: {},
+            options: [
+              {
+                displayName: 'Log Level',
+                name: 'logLevel',
+                type: 'options',
+                options: [
+                  {
+                    name: 'None',
+                    value: 'NONE',
+                    description: 'No logging',
+                  },
+                  {
+                    name: 'Error',
+                    value: 'ERROR',
+                    description: 'Error messages only',
+                  },
+                  {
+                    name: 'Warning',
+                    value: 'WARN',
+                    description: 'Warning and error messages',
+                  },
+                  {
+                    name: 'Info',
+                    value: 'INFO',
+                    description: 'Informational, warning, and error messages',
+                  },
+                  {
+                    name: 'Debug',
+                    value: 'DEBUG',
+                    description: 'Detailed debug information',
+                  },
+                ],
+                default: 'ERROR',
+                description: 'Level of detail for debug logs',
+              },
+              {
+                displayName: 'Include Match Details',
+                name: 'includeMatchDetails',
+                type: 'boolean',
+                default: false,
+                description: 'Include details about each match attempt in the output',
+              },
+              {
+                displayName: 'Include Formula Evaluation Details',
+                name: 'includeFormulaDetails',
+                type: 'boolean',
+                default: false,
+                description: 'Include formula evaluation steps in the output',
+              },
+              {
+                displayName: 'Include Batch Statistics',
+                name: 'includeBatchStatistics',
+                type: 'boolean',
+                default: false,
+                description: 'Include batch processing statistics in the output',
+              },
+              {
+                displayName: 'Include Data Flow Visualization',
+                name: 'includeDataFlowVisualization',
+                type: 'boolean',
+                default: false,
+                description: 'Include a visual representation of the data processing flow',
+              },
+            ],
+          },
+        ],
+      },
     ],
   };
 
@@ -484,20 +692,33 @@ export class BillingCalculator implements INodeType {
       const usageSchema = inferSchemaFromExample(usageExample);
       const outputSchema = inferSchemaFromExample(outputExample);
 
-      // Get match configuration - Phase 2 enhanced version
+      // Get match configuration - Phase 3 enhanced version with multi-key support
       const matchConfigV2 = this.getNodeParameter('matchConfigV2.config', 0, {}) as {
         matchMethod: string;
         fieldMapping: { mapping: { priceListField: string; usageField: string }[] };
         defaultOnNoMatch: string;
       };
 
+      // Create resource mapper-compatible format for conversion
+      const matchMappings: { [key: string]: { value: string } } = {};
+
+      if (matchConfigV2.fieldMapping?.mapping) {
+        for (const mapping of matchConfigV2.fieldMapping.mapping) {
+          if (mapping.priceListField && mapping.usageField) {
+            matchMappings[`priceList.${mapping.priceListField}`] = {
+              value: `usage.${mapping.usageField}`,
+            };
+          }
+        }
+      }
+
       // Convert to MatchConfig for compatibility with existing functions
-      const matchConfig: MatchConfig = {
-        priceListField: matchConfigV2.fieldMapping?.mapping?.[0]?.priceListField || 'productId',
-        usageField: matchConfigV2.fieldMapping?.mapping?.[0]?.usageField || 'productId',
-        allowMultipleMatches: matchConfigV2.matchMethod === 'multi',
-        defaultOnNoMatch: matchConfigV2.defaultOnNoMatch,
-      };
+      // Use enhanced resourceMapperToMatchConfig that supports multi-key matching
+      const matchConfig = resourceMapperToMatchConfig(
+        matchMappings,
+        matchConfigV2.matchMethod === 'multi',
+        matchConfigV2.defaultOnNoMatch,
+      );
 
       let result: INodeExecutionData[] = [];
 
@@ -523,7 +744,7 @@ export class BillingCalculator implements INodeType {
         validationResults[0].json.schemaVisualization = schemaVisualization;
 
         result = validationResults;
-      } else if (operation === 'processBilling') {
+      } else {
         // Get input data for processing billing
         const inputDataConfig = this.getNodeParameter('inputData.data', 0, {}) as {
           priceListSource?: string;
@@ -606,13 +827,31 @@ export class BillingCalculator implements INodeType {
           }));
         }
 
-        // Execute billing process
+        // Get advanced options for batch processing
+        const advancedOptions = this.getNodeParameter('advancedOptions', 0, {}) as IDataObject;
+        const batchProcessingOptions = (advancedOptions.batchProcessing as IDataObject) || {};
+        const errorHandlingOptions = (advancedOptions.errorHandling as IDataObject) || {};
+
+        // Create batch processing configuration
+        const batchOptions: BatchProcessingOptions = {
+          enabled: batchProcessingOptions.enabled === true,
+          batchSize: batchProcessingOptions.batchSize
+            ? Number.parseInt(batchProcessingOptions.batchSize as string, 10)
+            : DEFAULT_BATCH_OPTIONS.batchSize,
+          reportProgress: batchProcessingOptions.reportProgress === true,
+          onBatchError:
+            (errorHandlingOptions.onBatchError as 'stopAll' | 'skipBatch' | 'processIndividual') ||
+            DEFAULT_BATCH_OPTIONS.onBatchError,
+        };
+
+        // Execute billing process with batch processing options
         result = await processBilling.call(
           this,
           priceList,
           usageRecords,
           matchConfig,
           outputConfig,
+          batchOptions,
         );
       }
 

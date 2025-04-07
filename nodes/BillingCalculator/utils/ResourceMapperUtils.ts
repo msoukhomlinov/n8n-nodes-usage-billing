@@ -1,10 +1,9 @@
-import type { INodeProperties, NodeParameterValue } from 'n8n-workflow';
+import type { INodeProperties } from 'n8n-workflow';
 import type {
   Schema,
-  SchemaField,
   MatchConfig,
-  PriceListItem,
-  UsageRecord,
+  ResourceMapperMatchConfig,
+  FieldMapping,
 } from '../interfaces/SchemaInterfaces';
 
 /**
@@ -54,6 +53,7 @@ export function createMatchResourceMapper(
           displayName: 'Usage Data Field',
           options: schemaToResourceMapperOptions(usageSchema, 'usage'),
         },
+        multiSelect: true, // Enable multi-select for multi-key matching
       },
     },
     description: 'Map fields between price list and usage data for matching',
@@ -63,17 +63,42 @@ export function createMatchResourceMapper(
 /**
  * Converts resource mapper value to match config
  */
-export function resourceMapperToMatchConfig(resourceMapperValue: {
-  [key: string]: { value: string };
-}): MatchConfig {
+export function resourceMapperToMatchConfig(
+  resourceMapperValue: { [key: string]: { value: string } },
+  useMultiKeyMatch = false,
+  defaultOnNoMatch = 'error',
+): MatchConfig {
   const mappings = Object.entries(resourceMapperValue);
 
-  // For Phase 2, we only support the first mapping as the match key
   if (mappings.length === 0) {
     throw new Error('No field mappings defined for matching');
   }
 
-  // Extract the first mapping
+  if (useMultiKeyMatch && mappings.length > 0) {
+    // Extract all mappings for multi-key match
+    const priceListFields: string[] = [];
+    const usageFields: string[] = [];
+
+    for (const [priceListFieldFull, usageFieldObj] of mappings) {
+      const priceListField = priceListFieldFull.replace('priceList.', '');
+      const usageField = usageFieldObj.value.replace('usage.', '');
+
+      priceListFields.push(priceListField);
+      usageFields.push(usageField);
+    }
+
+    return {
+      priceListField: priceListFields[0], // Primary field for backward compatibility
+      usageField: usageFields[0], // Primary field for backward compatibility
+      priceListFields,
+      usageFields,
+      allowMultipleMatches: false,
+      defaultOnNoMatch,
+      multiKeyMatch: true,
+    };
+  }
+
+  // Extract the first mapping for single field match (legacy support)
   const [priceListFieldFull, usageFieldObj] = mappings[0];
   const priceListField = priceListFieldFull.replace('priceList.', '');
   const usageField = usageFieldObj.value.replace('usage.', '');
@@ -81,8 +106,41 @@ export function resourceMapperToMatchConfig(resourceMapperValue: {
   return {
     priceListField,
     usageField,
+    priceListFields: [priceListField],
+    usageFields: [usageField],
     allowMultipleMatches: false,
-    defaultOnNoMatch: 'error',
+    defaultOnNoMatch,
+    multiKeyMatch: false,
+  };
+}
+
+/**
+ * Transforms resource mapper values to ResourceMapperMatchConfig format
+ */
+export function transformToResourceMapperMatchConfig(
+  resourceMapperValue: { [key: string]: { value: string } },
+  useMultiKeyMatch = false,
+  defaultOnNoMatch: 'error' | 'skip' | 'empty' = 'error',
+): ResourceMapperMatchConfig {
+  const mappings: FieldMapping[] = [];
+
+  // Extract all mappings
+  for (const [priceListFieldFull, usageFieldObj] of Object.entries(resourceMapperValue)) {
+    const priceListField = priceListFieldFull.replace('priceList.', '');
+    const usageField = usageFieldObj.value.replace('usage.', '');
+
+    mappings.push({
+      sourceField: priceListField,
+      targetField: usageField,
+      sourceType: 'priceList',
+      targetType: 'usage',
+    });
+  }
+
+  return {
+    mappings,
+    multiKeyMatch: useMultiKeyMatch && mappings.length > 1,
+    defaultOnNoMatch,
   };
 }
 

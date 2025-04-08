@@ -1,2 +1,1 @@
-export * from './SchemaInterfaces';
-export * from './ProcessingInterfaces';
+export * from './types';

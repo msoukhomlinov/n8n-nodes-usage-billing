@@ -110,90 +110,51 @@ The goal is to help you maintain a big picture as well as the progress of the ta
 
 # Scratchpad
 
-## BillingCalculator Refactoring Plan
+## n8n-nodes-billing-calculator Refactoring Plan
 
-**Task:** Refactor the BillingCalculator node files to improve maintainability by reducing file size to 200-350 lines per file.
+### Project Overview
+The billing-calculator node will be refactored into two sequential operations that align with the natural workflow of processing pricing data:
+1. "Load Price List" - Importing and transforming pricing data from CSV to JSON
+2. "Calculate Billing" - Applying price list to usage data to generate billing records
 
-**Current State:**
-- BillingCalculator.node.ts: 842 lines
-- BillingCalculator.node.functions.ts: 455 lines
-- Both files need to be broken down into smaller, more focused components
+### Implementation Phases
 
-**Proposed Directory Structure:**
-```
-src/nodes/BillingCalculator/
-├── BillingCalculator.node.ts (simplified)
-├── config/
-│   ├── NodeUIConfig.ts
-│   └── SchemaVisualization.ts
-├── processing/
-│   ├── BillingProcessor.ts
-│   └── FormulaProcessor.ts
-├── validation/
-│   └── ConfigValidator.ts
-├── interfaces/
-│   ├── index.ts (already exists)
-│   ├── SchemaInterfaces.ts (already exists)
-│   └── ProcessingInterfaces.ts (new)
-├── utils/ (already well structured)
-│   ├── index.ts
-│   ├── BatchProcessingUtils.ts
-│   ├── DebugUtils.ts
-│   ├── FormulaUtils.ts
-│   ├── MatchingUtils.ts
-│   ├── ResourceMapperUtils.ts
-│   ├── SchemaUtils.ts
-│   └── ValidationUtils.ts
-└── index.ts (new)
-```
+#### Phase 1: Node Structure Setup
+[X] 1.1. Set up basic node structure with operation selection
+[X] 1.2. Define interfaces and types for both operations
+[X] 1.3. Create the operation selection UI
+[X] 1.4. Implement the workflow between operations
+[X] 1.5. Set up configuration validation
 
-**File Responsibilities:**
+#### Phase 2: "Load Price List" Operation
+[X] 2.1. Implement CSV parsing and validation
+[X] 2.2. Create column mapping interface
+[X] 2.3. Build hierarchical structure definition UI (up to 4 levels)
+[X] 2.4. Implement transformation to JSON price list
+[X] 2.5. Add validation and error handling
+[X] 2.6. Create data preview functionality
 
-[ ] **BillingCalculator.node.ts**
-- Keep node class definition and execute method
-- Import UI configuration from config/NodeUIConfig
-- Import processing logic from processing modules
-- Target size: ~200 lines
+#### Phase 3: "Calculate Billing" Operation
+[X] 3.1. Implement price list and usage data input handling
+[X] 3.2. Create field mapping interface for hierarchical matching
+[X] 3.3. Build core hierarchical matching engine
+[X] 3.4. Implement billing calculation logic
+[X] 3.5. Create output field selection interface
+[X] 3.6. Add validation and error handling
 
-[ ] **config/NodeUIConfig.ts**
-- Extract all UI property definitions
-- Export nodeDescription object
-- Target size: ~200-300 lines
+### Refactoring Implementation Progress
 
-[ ] **config/SchemaVisualization.ts**
-- Extract createSchemaVisualization function
-- Target size: ~50-100 lines
+#### Completed:
+- Updated interfaces in `interfaces/types.ts` to support both operations
+- Updated node description in `config/nodeDescription.ts` to include UI for both operations
+- Created `processing/PriceListProcessor.ts` for the "Load Price List" operation
+- Renamed and updated `processing/BillingProcessor.ts` for the "Calculate Billing" operation
+- Updated the main node file to handle both operations
 
-[ ] **processing/BillingProcessor.ts**
-- Extract processBilling function
-- Extract processBillingRecord function
-- Target size: ~150-200 lines
-
-[ ] **processing/FormulaProcessor.ts**
-- Extract calculateField function
-- Target size: ~50-100 lines
-
-[ ] **validation/ConfigValidator.ts**
-- Extract validateConfiguration function
-- Target size: ~100-150 lines
-
-[ ] **interfaces/ProcessingInterfaces.ts**
-- Add processing-related interfaces
-- Target size: ~50-100 lines
-
-[ ] **index.ts**
-- Main exports for the node module
-- Target size: ~20-30 lines
-
-**Implementation Strategy:**
-1. Create the directory structure
-2. Define clear interfaces
-3. Extract functionality from large files into dedicated modules
-4. Update imports throughout the codebase
-5. Test each module independently
-
-**Benefits:**
-- Improved maintainability
-- Better separation of concerns
-- Easier to test and extend
-- Accommodates future growth
+#### Next Steps:
+- Test the refactored implementation
+- Add additional error handling if needed
+- Consider future enhancements:
+  - Advanced CSV parsing with quoted values
+  - More complex hierarchical matching logic
+  - Additional calculation methods for tiered pricing

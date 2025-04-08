@@ -1,146 +1,89 @@
 # n8n-nodes-billing-calculator design
 
-# Refactored Design: n8n-nodes-billing-calculator
+# Simplified Design: n8n-nodes-billing-calculator (v1)
 
 ## Core Functionality Overview
 
-The n8n-nodes-billing-calculator node will serve as middleware that processes pricing and usage data to generate accurate billing records. This refactored design focuses on:
+The n8n-nodes-billing-calculator node will serve as middleware that processes pricing and usage data to generate accurate billing records. This simplified design focuses on:
 
-1. Schema generation from examples rather than manual building
-2. Robust matching between usage data and price list items
-3. Flexible output generation based on configurable schemas
-4. Comprehensive validation at all stages
+1. Direct field mapping for pricing and usage data
+2. Basic matching between usage data and price list items
+3. Simple output generation based on configurable fields
+4. Essential validation for key operations
 
-## Node Structure & Operations
+## Node Operation
 
-The node will offer two distinct operations:
+The node will offer a single operation:
 
-1. **Process Billing** (Primary Operation)
+1. **Process Billing**
    - Takes usage data and price list as inputs
    - Performs matching and calculation
    - Outputs formatted billing records
 
-2. **Validate Configuration**
-   - Tests schema definitions and matching rules
-   - Reports potential issues without processing actual billing
-   - Helps users troubleshoot configurations before production use
+## Field Configuration Interface
 
-## Schema Definition Interface
+The node will use direct field mapping for simplicity:
 
-Instead of requiring manual schema building, the node will primarily rely on example-based schema generation:
+### Manual Field Configuration
 
-### Example-Driven Schema Generation
+- Users specify key fields for:
+  - Price list items (e.g., productId, unitPrice, currency)
+  - Usage data (e.g., productId, usage, customerId)
+  - Output billing records
 
-- A simple interface where users paste sample JSON objects for:
-  - Price list item example
-  - Usage data example
-  - Desired output record example
+- Configuration is done through:
+  - Dropdown selection of input fields
+  - Simple mapping between input and output fields
+  - Selection of calculation method
 
-- The node automatically:
-  - Infers field names and types from the examples
-  - Creates appropriate schema definitions
-  - Presents the inferred schema for review
-  - Allows minor adjustments (marking fields as required, etc.)
+## Field Mapping
 
-- Users can optionally fine-tune generated schemas by:
-  - Adjusting data types
-  - Marking fields as required/optional
-  - Adding descriptions to fields
-
-### Schema Visualization
-
-- Displays the generated schema in a readable format
-- Highlights key fields that will be used for matching
-- Shows relationships between input and output schemas
-
-## Enhanced Field Mapping
-
-The node will implement multiple approaches to field mapping:
-
-### Resource Mapper Component
-
-- Dedicated visual interface for mapping between schemas
-- Shows source fields on one side, target fields on the other
-- Supports drag-and-drop field mapping
-- Auto-mapping option for fields with matching names
+The node implements a straightforward approach to field mapping:
 
 ### Match Configuration
 
 - Clear UI section for defining how usage data maps to price list items
 - Support for single-key matching (e.g., ProductID to SKU)
-- Advanced option for multi-key matching (e.g., ProductID + Region)
-- Dropdown selection of fields (populated from inferred schemas)
+- Dropdown selection of fields from input data
 
 ### Calculation Configuration
 
-- Visual formula builder for custom calculations
-- Predefined calculation templates (basic multiplication, tiered pricing, etc.)
-- Support for margin-based or fixed pricing models
+- Predefined calculation templates:
+  - Basic multiplication (quantity * unit price)
+  - Simple tiered pricing
+- Option to specify output fields
 
 ## Validation Framework
 
-The node implements comprehensive validation:
+The node implements essential validation:
 
-### Schema Validation
+### Input Validation
 
-- Internal JSON Schema validation using Ajv
-- Type checking for all fields (ensuring numbers are numeric, etc.)
-- Required field validation
-- Format validation for special fields (dates, emails, etc.)
+- Verification of required fields
+- Type checking for key fields (ensuring numbers are numeric, etc.)
 
 ### Match Validation
 
 - Detection of missing match keys
-- Warning for price list items without corresponding usage
 - Error reporting for usage items without matching prices
 - Option to specify default behavior for non-matches
 
 ### Output Validation
 
-- Verification that all required output fields can be populated
-- Type checking before output generation
-- Validation of calculation results (e.g., no negative prices)
-
-## User Experience Improvements
-
-### Contextual Help
-
-- Inline documentation for each section
-- Tooltips explaining parameters and options
-- Example configurations accessible within the node
-
-### Debugging Assistance
-
-- Detailed error messages identifying specific issues
-- Preview mode showing intermediate matching results
-- Debug output option for troubleshooting
+- Basic verification that required output fields can be populated
+- Validation of calculation results
 
 ## Technical Implementation Details
 
 ### Data Structures
 
 ```typescript
-// Core interfaces for schema management
-interface SchemaField {
-  name: string;
-  type: 'string' | 'number' | 'boolean' | 'date';
-  required: boolean;
-  description?: string;
-}
-
-interface Schema {
-  fields: SchemaField[];
-  primaryKey?: string[];
-}
-
 // Runtime data interfaces
 interface PriceListItem {
   [key: string]: any;
 }
 
 interface UsageRecord {
-  vendorProductFamily: string;
-  usage: number;
   [key: string]: any;
 }
 
@@ -156,110 +99,39 @@ interface MatchResult {
 }
 ```
 
-### Schema Inference Logic
-
-```typescript
-// Schema inference from example (pseudocode)
-function inferSchemaFromExample(exampleObject) {
-  const schema = {
-    fields: []
-  };
-
-  // Process each property in the example object
-  for (const [key, value] of Object.entries(exampleObject)) {
-    // Determine the data type
-    let type = typeof value;
-
-    // Convert JavaScript types to schema types
-    if (type === 'number') {
-      type = 'number';
-    } else if (type === 'boolean') {
-      type = 'boolean';
-    } else if (value instanceof Date) {
-      type = 'date';
-    } else {
-      type = 'string';
-    }
-
-    // Add field to schema
-    schema.fields.push({
-      name: key,
-      type,
-      required: true, // Default to required, can be adjusted later
-      description: ''
-    });
-  }
-
-  return schema;
-}
-```
-
 ### Node Parameters Structure
 
 ```typescript
 // Simplified representation of node parameters
 const nodeParameters = [
-  // Operation selection
+  // Input Data Section
   {
-    name: 'operation',
-    type: 'options',
-    options: [
-      { name: 'Process Billing', value: 'processBilling' },
-      { name: 'Validate Configuration', value: 'validateConfig' }
-    ],
-    default: 'processBilling',
-    description: 'Operation to perform'
-  },
-
-  // Schema Inference Section
-  {
-    name: 'schemaInference',
-    displayName: 'Schema Definition from Examples',
+    name: 'inputData',
+    displayName: 'Input Data',
     type: 'fixedCollection',
     default: {},
     options: [
       {
-        name: 'priceListExample',
-        displayName: 'Price List Item Example',
+        name: 'priceListSource',
+        displayName: 'Price List Data',
         values: [
           {
-            name: 'example',
-            type: 'json',
-            typeOptions: {
-              alwaysOpenEditWindow: true
-            },
-            default: '{\n  "productId": "PROD001",\n  "unitPrice": 10.99,\n  "currency": "USD"\n}',
-            description: 'Paste an example of a single price list item as JSON'
+            name: 'fieldName',
+            type: 'string',
+            default: 'priceList',
+            description: 'The name of the field containing price list data'
           }
         ]
       },
       {
-        name: 'usageExample',
-        displayName: 'Usage Data Example',
+        name: 'usageSource',
+        displayName: 'Usage Data',
         values: [
           {
-            name: 'example',
-            type: 'json',
-            typeOptions: {
-              alwaysOpenEditWindow: true
-            },
-            default: '{\n  "productId": "PROD001",\n  "usage": 5,\n  "customerId": "CUST123"\n}',
-            description: 'Paste an example of a single usage record as JSON'
-          }
-        ]
-      },
-      {
-        name: 'outputExample',
-        displayName: 'Desired Output Example',
-        values: [
-          {
-            name: 'example',
-            type: 'json',
-            typeOptions: {
-              alwaysOpenEditWindow: true
-            },
-            default: '{\n  "productId": "PROD001",\n  "usage": 5,\n  "unitPrice": 10.99,\n  "totalCost": 54.95,\n  "customerId": "CUST123"\n}',
-            description: 'Paste an example of how you want the output to look'
+            name: 'fieldName',
+            type: 'string',
+            default: 'usageData',
+            description: 'The name of the field containing usage data'
           }
         ]
       }
@@ -273,32 +145,104 @@ const nodeParameters = [
     type: 'fixedCollection',
     default: {},
     options: [
-      // Match fields definition
-      // Multiple/no match handling
-    ],
-    // Display conditions based on operation
+      {
+        name: 'matchFields',
+        displayName: 'Match Fields',
+        values: [
+          {
+            name: 'priceListField',
+            type: 'string',
+            default: 'productId',
+            description: 'Field in price list to match on'
+          },
+          {
+            name: 'usageField',
+            type: 'string',
+            default: 'productId',
+            description: 'Field in usage data to match on'
+          },
+          {
+            name: 'noMatchBehavior',
+            type: 'options',
+            options: [
+              { name: 'Skip Record', value: 'skip' },
+              { name: 'Error', value: 'error' }
+            ],
+            default: 'skip',
+            description: 'What to do when no match is found'
+          }
+        ]
+      }
+    ]
   },
 
-  // Input Data Section
+  // Calculation Configuration
   {
-    name: 'inputData',
-    displayName: 'Input Data',
+    name: 'calculationConfig',
+    displayName: 'Calculation Configuration',
     type: 'fixedCollection',
     default: {},
     options: [
-      // Price list data source
-      // Usage data source
-    ],
-    // Display conditions based on operation
+      {
+        name: 'calculationMethod',
+        displayName: 'Calculation Method',
+        values: [
+          {
+            name: 'method',
+            type: 'options',
+            options: [
+              { name: 'Basic (quantity * price)', value: 'basic' },
+              { name: 'Simple Tiered', value: 'tiered' }
+            ],
+            default: 'basic',
+            description: 'Method to calculate billing amount'
+          },
+          {
+            name: 'quantityField',
+            type: 'string',
+            default: 'usage',
+            description: 'Field containing quantity/usage amount'
+          },
+          {
+            name: 'priceField',
+            type: 'string',
+            default: 'unitPrice',
+            description: 'Field containing unit price'
+          }
+        ]
+      }
+    ]
   },
 
-  // Output Configuration
+  // Output Field Configuration
   {
     name: 'outputConfig',
     displayName: 'Output Configuration',
-    type: 'resourceMapper',
-    // Configuration for output mapping
-    // Display conditions based on operation
+    type: 'fixedCollection',
+    default: {},
+    options: [
+      {
+        name: 'outputFields',
+        displayName: 'Output Fields',
+        values: [
+          {
+            name: 'fields',
+            type: 'string',
+            typeOptions: {
+              multipleValues: true
+            },
+            default: ['productId', 'usage', 'unitPrice', 'totalCost', 'customerId'],
+            description: 'Fields to include in output'
+          },
+          {
+            name: 'totalField',
+            type: 'string',
+            default: 'totalCost',
+            description: 'Field to store calculation result'
+          }
+        ]
+      }
+    ]
   }
 ]
 ```
@@ -320,13 +264,8 @@ function findMatches(priceList, usageRecords, matchConfig) {
     const matchedPrice = priceIndex.get(matchKey);
 
     if (!matchedPrice) {
-      // Handle no-match case
+      // Handle no-match case based on configuration
       return handleNoMatch(usage, matchConfig);
-    }
-
-    if (Array.isArray(matchedPrice) && matchedPrice.length > 1) {
-      // Handle multiple matches case
-      return handleMultipleMatches(usage, matchedPrice, matchConfig);
     }
 
     // Calculate billing based on match
@@ -337,36 +276,28 @@ function findMatches(priceList, usageRecords, matchConfig) {
 
 ## Implementation Strategy
 
-1. **Phase 1: Core Framework**
-   - Basic node structure with operations
-   - Schema inference from examples
-   - Simple matching engine
-   - Basic validation
+1. **Phase 1: Core Functionality (v1)**
+   - Basic node with "Process Billing" operation
+   - Simple field mapping for input/output
+   - Single-key matching engine
+   - Basic validation and error handling
 
-2. **Phase 2: Enhanced User Experience**
-   - Resource Mapper integration
-   - Improved schema visualization
-   - Enhanced validation feedback
-
-3. **Phase 3: Advanced Features**
+2. **Phase 2: Enhancements (Future)**
+   - Example-based schema generation
    - Multi-key matching
-   - Custom calculation formulas
-   - Batch processing optimization
-   - Debugging tools
+   - Advanced calculation methods
+   - Resource mapper integration
+   - Enhanced validation and debugging tools
+   - Performance optimization for large datasets
 
 ## Best Practices & Considerations
 
-1. **Performance Optimization**
-   - Index price list data for O(1) lookups
-   - Process records in batches for large datasets
-   - Implement pagination for very large outputs
+1. **Performance**
+   - Index price list data for efficient lookups
+   - Simple error handling with clear messages
+   - Focus on reliability over advanced features
 
-2. **Error Handling**
-   - Provide clear, actionable error messages
-   - Allow configurable error tolerance (fail fast vs. continue with warnings)
-   - Include row/record references in error messages
-
-3. **Extensibility**
-   - Design schemas to be easily extended
-   - Support for custom calculation logic
-   - Allow for future pricing models
+2. **Extensibility**
+   - Design core structures to be easily extended in future versions
+   - Maintain clear separation between matching, calculation, and output generation
+   - Document extension points for future development

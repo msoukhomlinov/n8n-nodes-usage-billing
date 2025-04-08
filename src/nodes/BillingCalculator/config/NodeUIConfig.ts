@@ -43,7 +43,18 @@ export const nodeDescription: INodeTypeDescription = {
       displayName: 'Schema Definition from Examples',
       name: 'schemaInference',
       type: 'fixedCollection',
-      default: {},
+      default: {
+        priceListExample: {
+          example: '{\n  "productId": "PROD001",\n  "unitPrice": 10.99,\n  "currency": "USD"\n}',
+        },
+        usageExample: {
+          example: '{\n  "productId": "PROD001",\n  "usage": 5,\n  "customerId": "CUST123"\n}',
+        },
+        outputExample: {
+          example:
+            '{\n  "productId": "PROD001",\n  "usage": 5,\n  "unitPrice": 10.99,\n  "totalCost": 54.95,\n  "customerId": "CUST123"\n}',
+        },
+      },
       options: [
         {
           name: 'priceListExample',
@@ -107,6 +118,14 @@ export const nodeDescription: INodeTypeDescription = {
         config: {
           matchMethod: 'single',
           defaultOnNoMatch: 'error',
+          fieldMapping: {
+            mapping: [
+              {
+                priceListField: 'productId',
+                usageField: 'productId',
+              },
+            ],
+          },
         },
       },
       options: [
@@ -137,7 +156,7 @@ export const nodeDescription: INodeTypeDescription = {
               displayName: 'Field Mapping',
               name: 'fieldMapping',
               type: 'fixedCollection',
-              default: { mapping: [{}] },
+              default: { mapping: [{ priceListField: 'productId', usageField: 'productId' }] },
               typeOptions: {
                 multipleValues: true,
               },
@@ -204,6 +223,8 @@ export const nodeDescription: INodeTypeDescription = {
         data: {
           priceListSource: 'input',
           usageDataSource: 'input',
+          priceListParameter: '[]',
+          usageDataParameter: '[]',
         },
       },
       options: [
@@ -286,7 +307,9 @@ export const nodeDescription: INodeTypeDescription = {
       default: {
         config: {
           includeAllFields: true,
-          fieldMapping: { mapping: [] },
+          fieldMapping: {
+            mapping: [],
+          },
         },
       },
       options: [

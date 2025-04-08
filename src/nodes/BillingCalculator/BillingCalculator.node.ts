@@ -13,14 +13,20 @@ import {
   log,
 } from './utils';
 
+console.log('Node Description:', nodeDescription);
 export class BillingCalculator implements INodeType {
   description = nodeDescription;
 
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
     try {
+      console.log('===== [DEBUG] Execute method started =====');
+
+      console.log('[DEBUG] Getting operation parameter');
       const operation = this.getNodeParameter('operation', 0) as string;
+      console.log('[DEBUG] Operation:', operation);
 
       // Get examples from parameters
+      console.log('[DEBUG] Getting example parameters');
       const priceListExampleJson = this.getNodeParameter(
         'schemaInference.priceListExample.example',
         0,
@@ -38,11 +44,13 @@ export class BillingCalculator implements INodeType {
       ) as string;
 
       // Parse examples
+      console.log('[DEBUG] Parsing examples');
       const priceListExample = JSON.parse(priceListExampleJson);
       const usageExample = JSON.parse(usageExampleJson);
       const outputExample = JSON.parse(outputExampleJson);
 
       // Infer schemas
+      console.log('[DEBUG] Inferring schemas');
       const priceListSchema = inferSchemaFromExample(priceListExample);
       const usageSchema = inferSchemaFromExample(usageExample);
       // This schema is used for validation and potentially for UI display
@@ -58,17 +66,30 @@ export class BillingCalculator implements INodeType {
       );
 
       // Get match configuration - Phase 3 enhanced version with multi-key support
-      const matchConfigV2 = this.getNodeParameter('matchConfigV2.config', 0, {}) as {
-        matchMethod: string;
-        fieldMapping: { mapping: { priceListField: string; usageField: string }[] };
-        defaultOnNoMatch: string;
-      };
+      console.log('[DEBUG] Getting matchConfigV2 parameter');
+      console.log(
+        '[DEBUG] Checking if matchConfigV2 exists:',
+        this.getNodeParameter('matchConfigV2', 0, null) !== null,
+      );
+
+      // Use safer approach to access nested properties
+      const matchConfigWrapper = this.getNodeParameter('matchConfigV2', 0, {
+        config: {},
+      }) as IDataObject;
+      console.log('[DEBUG] matchConfigWrapper:', matchConfigWrapper);
+
+      const matchConfigV2 = (matchConfigWrapper.config as IDataObject) || {};
+      console.log('[DEBUG] matchConfigV2:', matchConfigV2);
 
       // Create resource mapper-compatible format for conversion
       const matchMappings: { [key: string]: { value: string } } = {};
 
-      if (matchConfigV2.fieldMapping?.mapping) {
-        for (const mapping of matchConfigV2.fieldMapping.mapping) {
+      if (matchConfigV2.fieldMapping && (matchConfigV2.fieldMapping as IDataObject).mapping) {
+        const mappings =
+          ((matchConfigV2.fieldMapping as IDataObject).mapping as IDataObject[]) || [];
+        console.log('[DEBUG] fieldMapping mappings:', mappings);
+
+        for (const mapping of mappings) {
           if (mapping.priceListField && mapping.usageField) {
             matchMappings[`priceList.${mapping.priceListField}`] = {
               value: `usage.${mapping.usageField}`,
@@ -79,15 +100,18 @@ export class BillingCalculator implements INodeType {
 
       // Convert to MatchConfig for compatibility with existing functions
       // Use enhanced resourceMapperToMatchConfig that supports multi-key matching
+      console.log('[DEBUG] Creating matchConfig');
       const matchConfig = resourceMapperToMatchConfig(
         matchMappings,
-        matchConfigV2.matchMethod === 'multi',
-        matchConfigV2.defaultOnNoMatch,
+        (matchConfigV2.matchMethod as string) === 'multi',
+        matchConfigV2.defaultOnNoMatch as string,
       );
+      console.log('[DEBUG] matchConfig created:', matchConfig);
 
       let result: INodeExecutionData[] = [];
 
       if (operation === 'validateConfig') {
+        console.log('[DEBUG] Executing validateConfig operation');
         // Execute validation operation with enhanced feedback
         const validationResults = await validateConfiguration.call(
           this,
@@ -100,15 +124,23 @@ export class BillingCalculator implements INodeType {
 
         result = validationResults;
       } else {
+        console.log('[DEBUG] Executing processBilling operation');
         // Get input data for processing billing
-        const inputDataConfig = this.getNodeParameter('inputData.data', 0, {}) as {
-          priceListSource?: string;
-          priceListParameter?: string;
-          usageDataSource?: string;
-          usageDataParameter?: string;
-        };
+        console.log('[DEBUG] Getting inputData.data parameter');
+        console.log(
+          '[DEBUG] Checking if inputData exists:',
+          this.getNodeParameter('inputData', 0, null) !== null,
+        );
+
+        // Use safer approach to access nested properties
+        const inputDataWrapper = this.getNodeParameter('inputData', 0, { data: {} }) as IDataObject;
+        console.log('[DEBUG] inputDataWrapper:', inputDataWrapper);
+
+        const inputDataConfig = (inputDataWrapper.data as IDataObject) || {};
+        console.log('[DEBUG] inputDataConfig:', inputDataConfig);
 
         const items = this.getInputData();
+        console.log('[DEBUG] Input items:', items.length);
 
         // Determine price list source and get data
         let priceList = [];
@@ -119,6 +151,7 @@ export class BillingCalculator implements INodeType {
           const priceListItem = items[0]?.json?.priceList;
           priceList = Array.isArray(priceListItem) ? priceListItem : [priceListItem];
         }
+        console.log('[DEBUG] priceList items:', priceList.length);
 
         // Determine usage data source and get data
         let usageRecords = [];
@@ -129,22 +162,26 @@ export class BillingCalculator implements INodeType {
           const usageItem = items[0]?.json?.usageRecords;
           usageRecords = Array.isArray(usageItem) ? usageItem : [usageItem];
         }
+        console.log('[DEBUG] usageRecords items:', usageRecords.length);
 
         // Get output mapping config - Phase 2 enhanced version
-        const outputMappingV2 = this.getNodeParameter('outputMappingV2.config', 0, {
+        console.log('[DEBUG] Getting outputMappingV2 parameter');
+        console.log(
+          '[DEBUG] Checking if outputMappingV2 exists:',
+          this.getNodeParameter('outputMappingV2', 0, null) !== null,
+        );
+
+        // Use safer approach to access nested properties
+        const outputMappingWrapper = this.getNodeParameter('outputMappingV2', 0, {
+          config: {},
+        }) as IDataObject;
+        console.log('[DEBUG] outputMappingWrapper:', outputMappingWrapper);
+
+        const outputMappingV2 = (outputMappingWrapper.config as IDataObject) || {
           includeAllFields: false,
           fieldMapping: { mapping: [] },
-        }) as {
-          includeAllFields: boolean;
-          fieldMapping: {
-            mapping: {
-              outputField: string;
-              source: string;
-              sourceField: string;
-              formula: string;
-            }[];
-          };
         };
+        console.log('[DEBUG] outputMappingV2:', outputMappingV2);
 
         // Create a compatible output config
         const outputConfig: OutputConfig = {
@@ -165,13 +202,20 @@ export class BillingCalculator implements INodeType {
               sourceType: 'usage' as const,
             })),
           ];
-        } else if (outputMappingV2.fieldMapping?.mapping?.length > 0) {
+        } else if (
+          outputMappingV2.fieldMapping &&
+          (outputMappingV2.fieldMapping as IDataObject).mapping &&
+          ((outputMappingV2.fieldMapping as IDataObject).mapping as IDataObject[]).length > 0
+        ) {
           // Use the explicit field mappings
-          outputConfig.fields = outputMappingV2.fieldMapping.mapping.map((mapping) => ({
-            name: mapping.outputField,
-            sourceField: mapping.source !== 'calculated' ? mapping.sourceField : undefined,
+          const mappings =
+            ((outputMappingV2.fieldMapping as IDataObject).mapping as IDataObject[]) || [];
+          outputConfig.fields = mappings.map((mapping) => ({
+            name: mapping.outputField as string,
+            sourceField:
+              mapping.source !== 'calculated' ? (mapping.sourceField as string) : undefined,
             sourceType: mapping.source as 'usage' | 'price' | 'calculated',
-            formula: mapping.source === 'calculated' ? mapping.formula : undefined,
+            formula: mapping.source === 'calculated' ? (mapping.formula as string) : undefined,
           }));
         } else {
           // Default field mapping based on output example
@@ -181,9 +225,13 @@ export class BillingCalculator implements INodeType {
             sourceType: 'usage' as const, // Default source type
           }));
         }
+        console.log('[DEBUG] outputConfig created');
 
         // Get advanced options for batch processing
+        console.log('[DEBUG] Getting advancedOptions parameter');
         const advancedOptions = this.getNodeParameter('advancedOptions', 0, {}) as IDataObject;
+        console.log('[DEBUG] advancedOptions:', advancedOptions);
+
         const batchProcessingOptions = (advancedOptions.batchProcessing as IDataObject) || {};
         const errorHandlingOptions = (advancedOptions.errorHandling as IDataObject) || {};
         const debuggingOptions = (advancedOptions.debugging as IDataObject) || {};
@@ -199,6 +247,7 @@ export class BillingCalculator implements INodeType {
             (errorHandlingOptions.onBatchError as 'stopAll' | 'skipBatch' | 'processIndividual') ||
             DEFAULT_BATCH_OPTIONS.onBatchError,
         };
+        console.log('[DEBUG] batchOptions created');
 
         // Set up logging level
         const logLevelStr = (debuggingOptions.logLevel as string) || 'ERROR';
@@ -212,6 +261,7 @@ export class BillingCalculator implements INodeType {
           debuggingOptions.includeDataFlowVisualization === true;
 
         // Execute billing process with options
+        console.log('[DEBUG] Calling processBilling');
         result = await processBilling.call(
           this,
           priceList,
@@ -225,10 +275,13 @@ export class BillingCalculator implements INodeType {
             execFunctions: this,
           },
         );
+        console.log('[DEBUG] processBilling completed');
       }
 
+      console.log('===== [DEBUG] Execute method completed successfully =====');
       return [result];
     } catch (error) {
+      console.error('===== [DEBUG] Execute method error =====', error);
       throw new NodeOperationError(this.getNode(), error as Error);
     }
   }

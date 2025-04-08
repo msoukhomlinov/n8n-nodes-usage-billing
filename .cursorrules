@@ -110,140 +110,90 @@ The goal is to help you maintain a big picture as well as the progress of the ta
 
 # Scratchpad
 
-## n8n-nodes-billing-calculator Project - Project Phases Progress
+## BillingCalculator Refactoring Plan
 
-### Completed Phases
+**Task:** Refactor the BillingCalculator node files to improve maintainability by reducing file size to 200-350 lines per file.
 
-#### Phase 1: Core Framework ✅
-- [X] Implemented basic node structure
-- [X] Created two operations: Process Billing and Validate Configuration
-- [X] Implemented schema inference from examples
-- [X] Created simple matching engine
-- [X] Implemented basic validation
-- [X] Fixed linter errors
-- [X] Addressed import path issues with interfaces
+**Current State:**
+- BillingCalculator.node.ts: 842 lines
+- BillingCalculator.node.functions.ts: 455 lines
+- Both files need to be broken down into smaller, more focused components
 
-#### Phase 2: Enhanced User Experience ✅
-- [X] Created ResourceMapperUtils.ts for resource mapper functionality
-- [X] Enhanced SchemaInterfaces.ts with new interface types
-- [X] Updated BillingCalculator.node.ts with improved match configuration
-- [X] Added output field mapping with multiple source types
-- [X] Implemented schema visualization
-- [X] Enhanced validation feedback with different severity levels
-- [X] Addressed linter errors and execution context issues
+**Proposed Directory Structure:**
+```
+src/nodes/BillingCalculator/
+├── BillingCalculator.node.ts (simplified)
+├── config/
+│   ├── NodeUIConfig.ts
+│   └── SchemaVisualization.ts
+├── processing/
+│   ├── BillingProcessor.ts
+│   └── FormulaProcessor.ts
+├── validation/
+│   └── ConfigValidator.ts
+├── interfaces/
+│   ├── index.ts (already exists)
+│   ├── SchemaInterfaces.ts (already exists)
+│   └── ProcessingInterfaces.ts (new)
+├── utils/ (already well structured)
+│   ├── index.ts
+│   ├── BatchProcessingUtils.ts
+│   ├── DebugUtils.ts
+│   ├── FormulaUtils.ts
+│   ├── MatchingUtils.ts
+│   ├── ResourceMapperUtils.ts
+│   ├── SchemaUtils.ts
+│   └── ValidationUtils.ts
+└── index.ts (new)
+```
 
-### Current Phase
+**File Responsibilities:**
 
-#### Phase 3: Advanced Features (In Progress)
-- [X] Implement multi-key matching
-  - [X] Create an enhanced matching engine in MatchingUtils.ts
-  - [X] Extend ResourceMapperMatchConfig to support multiple field mappings
-  - [X] Update indexPriceList to use composite keys
-  - [X] Update UI in BillingCalculator.node.ts to support multiple field selections
+[ ] **BillingCalculator.node.ts**
+- Keep node class definition and execute method
+- Import UI configuration from config/NodeUIConfig
+- Import processing logic from processing modules
+- Target size: ~200 lines
 
-- [X] Add custom calculation formulas
-  - [X] Create FormulaUtils.ts for formula parsing and evaluation
-  - [X] Implement basic arithmetic operations
-  - [X] Support variables from both price list and usage records
-  - [X] Add validation for formula correctness
+[ ] **config/NodeUIConfig.ts**
+- Extract all UI property definitions
+- Export nodeDescription object
+- Target size: ~200-300 lines
 
-- [X] Optimize batch processing for large datasets
-  - [X] Create chunking mechanism for processing large datasets
-  - [X] Implement progress reporting during execution
-  - [X] Add memory optimization for large price lists
-  - [X] Create configurable error handling options
+[ ] **config/SchemaVisualization.ts**
+- Extract createSchemaVisualization function
+- Target size: ~50-100 lines
 
-- [X] Create debugging tools
-  - [X] Add detailed logging options
-  - [X] Create diagnostic output with match details
-  - [X] Implement visualization of data flow
+[ ] **processing/BillingProcessor.ts**
+- Extract processBilling function
+- Extract processBillingRecord function
+- Target size: ~150-200 lines
 
-- [ ] Add comprehensive documentation
-  - Create usage examples in README.md
-  - Add inline documentation for complex functions
-  - Create an overview document for architecture
+[ ] **processing/FormulaProcessor.ts**
+- Extract calculateField function
+- Target size: ~50-100 lines
 
-- [ ] Create test workflows with samples
-  - Create sample datasets for testing
-  - Develop test workflows to validate features
-  - Write automated tests
+[ ] **validation/ConfigValidator.ts**
+- Extract validateConfiguration function
+- Target size: ~100-150 lines
 
-### Implementation Plan for Phase 3
+[ ] **interfaces/ProcessingInterfaces.ts**
+- Add processing-related interfaces
+- Target size: ~50-100 lines
 
-1. **Multi-key matching (first priority):**
-   - Update MatchingUtils.ts to support composite keys
-   - Extend findMatch function to handle multiple match fields
-   - Update UI in BillingCalculator.node.ts to support multiple field selections
-   - Create helper functions to handle multi-field matching
+[ ] **index.ts**
+- Main exports for the node module
+- Target size: ~20-30 lines
 
-2. **Custom calculation formulas:**
-   - Create FormulaUtils.ts with formula parser
-   - Implement basic arithmetic operations
-   - Add support for common functions (SUM, AVG, MIN, MAX)
-   - Create a validation function for formula syntax
+**Implementation Strategy:**
+1. Create the directory structure
+2. Define clear interfaces
+3. Extract functionality from large files into dedicated modules
+4. Update imports throughout the codebase
+5. Test each module independently
 
-3. **Batch processing optimization:**
-   - Implement chunk-based processing in BillingCalculator.node.functions.ts
-   - Add progress indicators in the node execution
-   - Optimize memory usage with iterators and generators
-
-4. **Debugging tools:**
-   - Add logging levels in a new DebugUtils.ts
-   - Create visualization helpers for match and calculation processes
-   - Implement detailed error reporting
-
-5. **Documentation and examples:**
-   - Update README.md with comprehensive examples
-   - Create example workflows in the .docs directory
-   - Document best practices and limitations
-
-6. **Testing:**
-   - Create test datasets in a new samples directory
-   - Implement automated tests for core functionality
-   - Create integration tests for complete workflows
-
-### Implementation Notes
-
-1. **Resource Mapper Implementation:**
-   - Used `fixedCollection` parameter with custom UI for visual mapping
-   - Adapted output fields to support multiple source types
-   - Created utility functions to convert between schemas and resource mapper options
-
-2. **Schema Visualization:**
-   - Implemented a standalone function for schema visualization
-   - Added highlighting for match fields
-   - Integrated visualization with validation output
-
-3. **Enhanced Validation:**
-   - Created interfaces for warnings and errors with severity levels
-   - Added field-level validation
-   - Improved error messages with specific context
-
-4. **Multi-key Matching:**
-   - Implemented support for multiple match fields with composite keys
-   - Enhanced UI to allow selection of multiple fields
-   - Ensured backward compatibility with single-key matching
-   - Added validation for missing match fields
-
-5. **Custom Calculation Formulas:**
-   - Implemented formula parser and evaluator with support for variables
-   - Added support for common math functions and operations
-   - Enhanced UI for formula editing with validation
-   - Added formula transformer to handle convenience variables
-
-6. **Batch Processing Optimization:**
-   - Created chunking mechanism for large datasets
-   - Implemented progress reporting for long-running operations
-   - Added configurable error handling options
-   - Optimized memory usage for large price lists
-
-7. **Debugging Tools:**
-   - Created DebugUtils.ts with logging functions at different levels
-   - Implemented diagnostic data collection for matches and formulas
-   - Added data flow visualization for debugging
-   - Created detailed record-level diagnostics
-
-8. **Next Steps:**
-   - Documentation and examples are next priority
-   - Will create comprehensive usage examples and a project overview
-   - Will implement test workflows with sample datasets
+**Benefits:**
+- Improved maintainability
+- Better separation of concerns
+- Easier to test and extend
+- Accommodates future growth

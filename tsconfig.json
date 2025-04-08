@@ -17,8 +17,9 @@
     "sourceMap": true,
     "target": "ES2021",
     "outDir": "./dist",
+    "rootDir": "./src",
     "resolveJsonModule": true
   },
-  "include": ["nodes/**/*.ts", "credentials/**/*.ts"],
+  "include": ["src/nodes/**/*.ts", "src/credentials/**/*.ts"],
   "exclude": ["node_modules/**/*", ".git/**/*"]
 }

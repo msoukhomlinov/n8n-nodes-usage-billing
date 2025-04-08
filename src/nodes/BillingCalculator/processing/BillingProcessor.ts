@@ -6,21 +6,20 @@ import type {
   OutputConfig,
   PriceListItem,
   UsageRecord,
-} from './interfaces/SchemaInterfaces';
-import type { BatchProcessingOptions, BatchProgress, IDiagnosticInfo } from './utils';
+  BillingProcessorOptions,
+  ProgressCallback,
+} from '../interfaces';
 import {
   findMatch,
   indexPriceList,
-  inferSchemaFromExample,
-  validateAll,
-  calculateWithFormula,
-  processBillingInBatches,
   LogLevel,
   log,
   createEmptyDiagnosticInfo,
   createDataFlowVisualization,
-  createRecordDiagnostics,
-} from './utils';
+  processBillingInBatches,
+} from '../utils';
+import type { IDiagnosticInfo } from '../utils';
+import { calculateField } from './FormulaProcessor';
 
 /**
  * Processes billing based on price list and usage data
@@ -31,7 +30,7 @@ export async function processBilling(
   usageRecords: UsageRecord[],
   matchConfig: MatchConfig,
   outputConfig: OutputConfig,
-  batchOptions?: BatchProcessingOptions,
+  options?: BillingProcessorOptions,
 ): Promise<INodeExecutionData[]> {
   // Ensure matchConfig has all required properties for multi-key matching
   if (matchConfig.multiKeyMatch && (!matchConfig.priceListFields || !matchConfig.usageFields)) {
@@ -39,20 +38,10 @@ export async function processBilling(
     matchConfig.usageFields = matchConfig.usageFields || [matchConfig.usageField];
   }
 
-  // Get debugging options
-  const advancedOptions = this.getNodeParameter('advancedOptions', 0, {}) as IDataObject;
-  const debuggingOptions = (advancedOptions.debugging as IDataObject) || {};
-
-  // Set up logging level
-  const logLevelStr = (debuggingOptions.logLevel as string) || 'ERROR';
-  const logLevel = LogLevel[logLevelStr as keyof typeof LogLevel] || LogLevel.ERROR;
-
-  // Set up diagnostic information collection
-  const includeDiagnostics =
-    debuggingOptions.includeMatchDetails === true ||
-    debuggingOptions.includeFormulaDetails === true ||
-    debuggingOptions.includeBatchStatistics === true ||
-    debuggingOptions.includeDataFlowVisualization === true;
+  // Get options with defaults
+  const batchOptions = options?.batchOptions;
+  const logLevel = options?.logLevel || LogLevel.ERROR;
+  const includeDiagnostics = options?.includeDiagnostics || false;
 
   // Create diagnostic container if needed
   const diagnosticInfo = includeDiagnostics ? createEmptyDiagnosticInfo() : undefined;
@@ -72,12 +61,12 @@ export async function processBilling(
   // Use batch processing if options are provided
   if (batchOptions?.enabled) {
     // Create progress reporting callback
-    const onProgress = (progress: BatchProgress) => {
+    const onProgress: ProgressCallback = (progress) => {
       try {
         // Access reportProgress using type assertion to avoid TypeScript errors
         // This is safe as n8n might add this property in newer versions
         const executeFunctions = this as unknown as {
-          reportProgress?: (data: BatchProgress) => void;
+          reportProgress?: (data: typeof progress) => void;
         };
         if (typeof executeFunctions.reportProgress === 'function') {
           executeFunctions.reportProgress(progress);
@@ -124,7 +113,7 @@ export async function processBilling(
       }
 
       // Add visualization if requested
-      if (debuggingOptions.includeDataFlowVisualization === true) {
+      if (options?.includeDiagnostics) {
         const visualization = createDataFlowVisualization(diagnosticInfo);
 
         // Add visualization to the first result item
@@ -133,21 +122,11 @@ export async function processBilling(
         }
       }
 
-      // Add individual diagnostics based on options
-      if (debuggingOptions.includeMatchDetails === true) {
+      // Process diagnostic information based on options
+      if (options?.includeDiagnostics) {
         for (const result of results) {
           result.json._debugMatchAttempts = diagnosticInfo.matchAttempts;
-        }
-      }
-
-      if (debuggingOptions.includeFormulaDetails === true) {
-        for (const result of results) {
           result.json._debugFormulaEvaluations = diagnosticInfo.formulaEvaluations;
-        }
-      }
-
-      if (debuggingOptions.includeBatchStatistics === true) {
-        for (const result of results) {
           result.json._debugBatchStatistics = diagnosticInfo.batchStatistics;
         }
       }
@@ -199,33 +178,7 @@ export async function processBilling(
     // Find match with diagnostic collection if enabled
     const match = findMatch(usageRecord, priceIndex, matchConfig);
 
-    // Update statistics
-    if (diagnosticInfo) {
-      if (match.matched) {
-        diagnosticInfo.batchStatistics.successfulMatches++;
-      } else {
-        diagnosticInfo.batchStatistics.failedMatches++;
-      }
-    }
-
-    // Skip invalid matches based on configuration
-    if (!match.matched) {
-      if (matchConfig.defaultOnNoMatch === 'error') {
-        const errorMsg = `No matching price list item found for usage record: ${JSON.stringify(
-          usageRecord,
-        )}`;
-        log.call(this, LogLevel.ERROR, errorMsg, undefined, { level: logLevel });
-        throw new Error(errorMsg);
-      }
-      if (matchConfig.defaultOnNoMatch === 'skip') {
-        log.call(this, LogLevel.WARN, 'Skipping record with no match', usageRecord, {
-          level: logLevel,
-        });
-        continue;
-      }
-    }
-
-    // Process the match to generate billing record
+    // Process the billing record
     const billingRecord = processBillingRecord(
       usageRecord,
       match,
@@ -235,20 +188,15 @@ export async function processBilling(
       this,
     );
 
-    // Create record diagnostics if requested
-    if (debuggingOptions.includeMatchDetails === true) {
-      const recordDiagnostic = createRecordDiagnostics(usageRecord, match, matchConfig);
-      billingRecord._debugRecordDiagnostic = recordDiagnostic;
-    }
-
+    // Create a node execution data item with the result
     results.push({
       json: billingRecord as IDataObject,
     });
   }
 
-  // Add diagnostic information to results if requested
-  if (diagnosticInfo) {
-    // Update statistics
+  // Add diagnostics to results if needed
+  if (diagnosticInfo && options?.includeDiagnostics) {
+    // Update timing statistics
     diagnosticInfo.batchStatistics.processingTimeMs = Date.now() - startTime;
 
     if (diagnosticInfo.batchStatistics.totalRecords > 0) {
@@ -257,50 +205,17 @@ export async function processBilling(
         diagnosticInfo.batchStatistics.totalRecords;
     }
 
-    // Add visualization if requested
-    if (debuggingOptions.includeDataFlowVisualization === true) {
-      const visualization = createDataFlowVisualization(diagnosticInfo);
-
-      // Add visualization to the first result item
-      if (results.length > 0) {
-        results[0].json.debugInfo = { visualization };
-      }
-    }
-
-    // Add individual diagnostics based on options
-    if (debuggingOptions.includeMatchDetails === true) {
-      for (const result of results) {
-        result.json._debugMatchAttempts = diagnosticInfo.matchAttempts;
-      }
-    }
-
-    if (debuggingOptions.includeFormulaDetails === true) {
-      for (const result of results) {
-        result.json._debugFormulaEvaluations = diagnosticInfo.formulaEvaluations;
-      }
-    }
-
-    if (debuggingOptions.includeBatchStatistics === true) {
-      for (const result of results) {
-        result.json._debugBatchStatistics = diagnosticInfo.batchStatistics;
-      }
+    // Add to output
+    if (results.length > 0) {
+      results[0].json._debugDiagnostics = diagnosticInfo;
     }
   }
-
-  // Log completion
-  log.call(
-    this,
-    LogLevel.INFO,
-    `Completed processing of ${usageRecords.length} records in ${Date.now() - startTime}ms`,
-    undefined,
-    { level: logLevel },
-  );
 
   return results;
 }
 
 /**
- * Processes a single billing record based on usage data and matched price item
+ * Processes a single billing record by applying the output configuration
  */
 export function processBillingRecord(
   usageRecord: UsageRecord,
@@ -324,14 +239,11 @@ export function processBillingRecord(
     } else if (field.sourceType === 'calculated' && field.formula) {
       // Calculate based on formula with diagnostics
       try {
-        billingRecord[field.name] = calculateField(
-          usageRecord,
-          priceItem,
-          field.formula,
+        billingRecord[field.name] = calculateField(usageRecord, priceItem, field.formula, {
           diagnosticInfo,
           logLevel,
           execFunctions,
-        );
+        });
       } catch (error) {
         if (logLevel >= LogLevel.ERROR && execFunctions) {
           log.call(
@@ -350,105 +262,4 @@ export function processBillingRecord(
   }
 
   return billingRecord;
-}
-
-/**
- * Calculates a field value based on a formula
- */
-export function calculateField(
-  usageRecord: UsageRecord,
-  priceItem: PriceListItem,
-  formula: string,
-  diagnosticInfo?: IDiagnosticInfo,
-  logLevel: LogLevel = LogLevel.NONE,
-  execFunctions?: IExecuteFunctions,
-): number | string | boolean {
-  if (logLevel >= LogLevel.DEBUG && execFunctions) {
-    log.call(
-      execFunctions,
-      LogLevel.DEBUG,
-      `Calculating field with formula: ${formula}`,
-      { usageRecord, priceItem },
-      { level: logLevel },
-    );
-  }
-
-  try {
-    // Use the formula evaluation utility with diagnostic collection
-    const result = calculateWithFormula(formula, usageRecord, priceItem, diagnosticInfo);
-
-    if (logLevel >= LogLevel.DEBUG && execFunctions) {
-      log.call(
-        execFunctions,
-        LogLevel.DEBUG,
-        `Formula result: ${result}`,
-        { formula, result },
-        { level: logLevel },
-      );
-    }
-
-    return result;
-  } catch (error) {
-    if (logLevel >= LogLevel.ERROR && execFunctions) {
-      log.call(
-        execFunctions,
-        LogLevel.ERROR,
-        `Formula evaluation failed: ${(error as Error).message}`,
-        { formula, error },
-        { level: logLevel },
-      );
-    }
-
-    throw error;
-  }
-}
-
-/**
- * Validates configuration without processing actual billing
- */
-export async function validateConfiguration(
-  this: IExecuteFunctions,
-  priceListExample: IDataObject,
-  usageExample: IDataObject,
-  outputExample: IDataObject,
-  matchConfig: MatchConfig,
-): Promise<INodeExecutionData[]> {
-  // Ensure matchConfig has all required properties for multi-key matching
-  if (matchConfig.multiKeyMatch && (!matchConfig.priceListFields || !matchConfig.usageFields)) {
-    matchConfig.priceListFields = matchConfig.priceListFields || [matchConfig.priceListField];
-    matchConfig.usageFields = matchConfig.usageFields || [matchConfig.usageField];
-  }
-
-  // Infer schemas from examples
-  const priceListSchema = inferSchemaFromExample(priceListExample);
-  const usageSchema = inferSchemaFromExample(usageExample);
-  const outputSchema = inferSchemaFromExample(outputExample);
-
-  // Create mock data for validation
-  const mockPriceList = [priceListExample] as PriceListItem[];
-  const mockUsageRecords = [usageExample] as UsageRecord[];
-
-  // Perform validation
-  const validationResult = validateAll(
-    priceListSchema,
-    usageSchema,
-    outputSchema,
-    matchConfig,
-    mockPriceList,
-    mockUsageRecords,
-  );
-
-  // Format the validation result as node output
-  return [
-    {
-      json: {
-        valid: validationResult.valid,
-        errors: validationResult.errors,
-        priceListSchema,
-        usageSchema,
-        outputSchema,
-        multiKeyMatch: matchConfig.multiKeyMatch,
-      } as IDataObject,
-    },
-  ];
 }

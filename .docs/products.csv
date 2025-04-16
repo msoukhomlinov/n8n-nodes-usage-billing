@@ -1,0 +1,54 @@
+ProductName,ProductModuleName,IITProductCode,IITProductModuleName,EditionName,IITEditionName,UsageDescription,UsageUnit,CostUSD,CostUnit,MarginPercent,MinMargin,IITRrpAUD,CompliantWithPlan,IITMaterialCode,BillingNotes
+Hybrid Workloads,Hybrid Workloads,BAAS-DC,Backup-as-a-Service for Enterprise Workloads,Elite,Premium,Cloud Storage,Bytes,176.96,TB/month,45,20,409,TRUE,00,
+Hybrid Workloads,Hybrid Workloads,BAAS-DC,Backup-as-a-Service for Enterprise Workloads,Elite,Premium,Long Term Retention Storage,Bytes,141.57,TB/month,45,20,330,TRUE,01,
+Hybrid Workloads,Hybrid Workloads,BAAS-DC,Backup-as-a-Service for Enterprise Workloads,Enterprise,Advanced,Cloud Storage,Bytes,142.99,TB/month,45,20,331,TRUE,05,
+Hybrid Workloads,Hybrid Workloads,BAAS-DC,Backup-as-a-Service for Enterprise Workloads,Enterprise,Advanced,Long Term Retention Storage,Bytes,114.39,TB/month,45,20,270,TRUE,06,
+Hybrid Workloads,Hybrid Workloads,BAAS-DC,Backup-as-a-Service for Enterprise Workloads,Business,Basic,Cloud Storage,Bytes,118.5,TB/month,40,20,265,TRUE,10,
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Elite,Premium,Active Users,Users,1.77,Users/Month,70,30,4.8,TRUE,02,Includes 50GB of pooled storage
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Elite,Premium,Preserved Users,Users,0.9,Users/Month,70,30,2.5,TRUE,02,"Includes 50GB of pooled storage, first 10% of active users is free"
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Elite,Premium,Unlimited Storage,Users,1.44,Users/Month,70,30,4,TRUE,02,"Increases storage to 300GB per user, applies to all users"
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Elite,Premium,Sensitive Data Governance,Users,1.46,Users/Month,70,30,4,TRUE,02,Overlay across all users
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Elite,Premium,Security Posture & Observability,Users,1.69,Users/Month,70,30,4.6,TRUE,02,Overlay across all users
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Elite,Premium,Accelerated Ransomware Recovery,Users,3.38,Users/Month,70,30,9.2,TRUE,02,Overlay across all users
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Enterprise,Advanced,Active Users,Users,1.52,Users/Month,70,30,4.2,TRUE,02,Includes 50GB of pooled storage
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Enterprise,Advanced,Preserved Users,Users,0.9,Users/Month,70,30,2.5,TRUE,02,"Includes 50GB of pooled storage, first 10% of active users is free"
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Enterprise,Advanced,Unlimited Storage,Users,1.44,Users/Month,70,30,4,TRUE,02,"Increases storage to 300GB per user, applies to all users"
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Enterprise,Advanced,Sensitive Data Governance,Users,1.65,Users/Month,70,30,4,TRUE,02,Overlay across all users
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Enterprise,Advanced,Security Posture & Observability,Users,1.69,Users/Month,70,30,4.6,TRUE,02,Overlay across all users
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Enterprise,Advanced,Accelerated Ransomware Recovery,Users,3.38,Users/Month,70,30,9.2,TRUE,02,Overlay across all users
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Business,Basic,Active Users,Users,0.96,Users/Month,70,30,2.7,TRUE,02,Includes 20GB of pooled storage
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Business,Basic,Preserved Users,Users,0.9,Users/Month,70,30,2.5,TRUE,02,"Includes 50GB of pooled storage, on Basic plan preserved users charged as active users"
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Business,Basic,Unlimited Storage,Users,1.44,Users/Month,70,30,4,FALSE,02,"Increases storage to 300GB per user, applies to all users"
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Business,Basic,Sensitive Data Governance,Users,1.65,Users/Month,70,30,4,FALSE,02,Overlay across all users
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Business,Basic,Security Posture & Observability,Users,1.69,Users/Month,70,30,4.6,FALSE,02,Overlay across all users
+SaaS Apps and Endpoints,Microsoft 365,BAAS-M365,Backup-as-a-Service for Microsoft 365,Business,Basic,Accelerated Ransomware Recovery,Users,3.38,Users/Month,70,30,9.2,FALSE,02,Overlay across all users
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Elite,Premium,Active Users,Users,1.77,Users/Month,70,30,4.8,TRUE,02,Includes 50GB of pooled storage
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Elite,Premium,Preserved Users,Users,0.9,Users/Month,70,30,2.5,TRUE,02,"Includes 50GB of pooled storage, first 10% of active users is free"
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Elite,Premium,Unlimited Storage,Users,1.44,Users/Month,70,30,4,TRUE,02,"Increases storage to 300GB per user, applies to all users"
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Elite,Premium,Sensitive Data Governance,Users,1.46,Users/Month,70,30,4,TRUE,02,Overlay across all users
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Elite,Premium,Security Posture & Observability,Users,1.69,Users/Month,70,30,4.6,TRUE,02,Overlay across all users
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Elite,Premium,Accelerated Ransomware Recovery,Users,3.38,Users/Month,70,30,9.2,TRUE,02,Overlay across all users
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Enterprise,Advanced,Active Users,Users,1.52,Users/Month,70,30,4.2,TRUE,02,Includes 50GB of pooled storage
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Enterprise,Advanced,Preserved Users,Users,0.9,Users/Month,70,30,2.5,TRUE,02,"Includes 50GB of pooled storage, first 10% of active users is free"
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Enterprise,Advanced,Unlimited Storage,Users,1.44,Users/Month,70,30,4,TRUE,02,"Increases storage to 300GB per user, applies to all users"
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Enterprise,Advanced,Sensitive Data Governance,Users,1.46,Users/Month,70,30,4,TRUE,02,Overlay across all users
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Enterprise,Advanced,Security Posture & Observability,Users,1.69,Users/Month,70,30,4.6,TRUE,02,Overlay across all users
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Enterprise,Advanced,Accelerated Ransomware Recovery,Users,3.38,Users/Month,70,30,9.2,TRUE,02,Overlay across all users
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Business,Basic,Active Users,Users,0.96,Users/Month,70,30,2.7,TRUE,02,Includes 20GB of pooled storage
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Business,Basic,Preserved Users,Users,0.9,Users/Month,70,30,5,TRUE,02,"Includes 50GB of pooled storage, on Basic plan preserved users charged as active users"
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Business,Basic,Unlimited Storage,Users,1.44,Users/Month,70,30,4,FALSE,02,"Increases storage to 300GB per user, applies to all users"
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Business,Basic,Sensitive Data Governance,Users,1.46,Users/Month,70,30,4,FALSE,02,Overlay across all users
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Business,Basic,Security Posture & Observability,Users,1.69,Users/Month,70,30,4.6,FALSE,02,Overlay across all users
+SaaS Apps and Endpoints,Google Workspaces,BAAS-GW,Backup-as-a-Service for Google Workspaces,Business,Basic,Accelerated Ransomware Recovery,Users,3.38,Users/Month,70,30,9.2,FALSE,02,Overlay across all users
+SaaS Apps and Endpoints,Endpoints,BAAS-EP,Backup-as-a-Service for Endpoints,Elite,Premium,Active Users,Users,4.5,Users/Month,65,30,11.9,TRUE,02,Includes 50GB of pooled storage
+SaaS Apps and Endpoints,Endpoints,BAAS-EP,Backup-as-a-Service for Endpoints,Elite,Premium,Preserved Users,Users,0.9,Users/Month,65,30,2.5,TRUE,02,"Includes 50GB of pooled storage, first 10% of active users is free"
+SaaS Apps and Endpoints,Endpoints,BAAS-EP,Backup-as-a-Service for Endpoints,Elite,Premium,Unlimited Storage,Users,1.44,Users/Month,70,30,4,TRUE,02,"Increases storage to 300GB per user, applies to all users"
+SaaS Apps and Endpoints,Endpoints,BAAS-EP,Backup-as-a-Service for Endpoints,Elite,Premium,Sensitive Data Governance,Users,1.46,Users/Month,70,30,4,FALSE,02,Overlay across all users
+SaaS Apps and Endpoints,Endpoints,BAAS-EP,Backup-as-a-Service for Endpoints,Elite,Premium,Security Posture & Observability,Users,1.69,Users/Month,70,30,4.6,TRUE,02,Overlay across all users
+SaaS Apps and Endpoints,Endpoints,BAAS-EP,Backup-as-a-Service for Endpoints,Elite,Premium,Accelerated Ransomware Recovery,Users,3.38,Users/Month,70,30,9.2,TRUE,02,Overlay across all users
+SaaS Apps and Endpoints,Endpoints,BAAS-EP,Backup-as-a-Service for Endpoints,Enterprise,Advanced,Active Users,Users,3.59,Users/Month,65,30,9.5,TRUE,02,Includes 50GB of pooled storage
+SaaS Apps and Endpoints,Endpoints,BAAS-EP,Backup-as-a-Service for Endpoints,Enterprise,Advanced,Preserved Users,Users,0.9,Users/Month,65,30,2.5,TRUE,02,"Includes 50GB of pooled storage, first 10% of active users is free"
+SaaS Apps and Endpoints,Endpoints,BAAS-EP,Backup-as-a-Service for Endpoints,Enterprise,Advanced,Unlimited Storage,Users,1.44,Users/Month,70,30,4,TRUE,02,"Increases storage to 300GB per user, applies to all users"
+SaaS Apps and Endpoints,Endpoints,BAAS-EP,Backup-as-a-Service for Endpoints,Enterprise,Advanced,Sensitive Data Governance,Users,1.46,Users/Month,70,30,4,FALSE,02,Overlay across all users
+SaaS Apps and Endpoints,Endpoints,BAAS-EP,Backup-as-a-Service for Endpoints,Enterprise,Advanced,Security Posture & Observability,Users,1.69,Users/Month,70,30,4.6,TRUE,02,Overlay across all users
+SaaS Apps and Endpoints,Endpoints,BAAS-EP,Backup-as-a-Service for Endpoints,Enterprise,Advanced,Accelerated Ransomware Recovery,Users,3.38,Users/Month,70,30,9.2,TRUE,02,Overlay across all users

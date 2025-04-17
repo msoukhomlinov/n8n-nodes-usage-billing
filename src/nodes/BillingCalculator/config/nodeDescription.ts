@@ -65,7 +65,7 @@ export const nodeDescription: INodeTypeDescription = {
           displayName: 'CSV Source Data',
           values: [
             {
-              displayName: 'Field Name',
+              displayName: 'Input Data Property Name',
               name: 'fieldName',
               type: 'string',
               default: 'csvdata',
@@ -165,6 +165,34 @@ export const nodeDescription: INodeTypeDescription = {
         'Configure which additional fields to include and their data types (hierarchy fields are always included)',
       options: [
         {
+          name: 'includeOptions',
+          displayName: 'Column Inclusion Options',
+          values: [
+            {
+              displayName: 'Include All Columns',
+              name: 'includeAllColumns',
+              type: 'boolean',
+              default: true,
+              description:
+                'Whether to include all columns at each level once hierarchy has been applied',
+            },
+            {
+              displayName: 'Columns to Include',
+              name: 'includeColumnsList',
+              type: 'string',
+              default: '',
+              displayOptions: {
+                show: {
+                  includeAllColumns: [false],
+                },
+              },
+              placeholder: 'column1,column2,column3',
+              description:
+                'Comma-separated list of column names to include (if empty, only hierarchy fields will be included)',
+            },
+          ],
+        },
+        {
           name: 'mappings',
           displayName: 'Include Additional Fields',
           values: [
@@ -221,43 +249,30 @@ export const nodeDescription: INodeTypeDescription = {
 
     // Input Data Section - For Calculate Billing Operation
     {
-      displayName: 'Input Data',
-      name: 'inputData',
-      type: 'fixedCollection',
-      default: {},
+      displayName: 'Price List Field Name',
+      name: 'priceListFieldName',
+      type: 'string',
+      default: 'priceList',
+      description: 'The name of the field containing price list data',
+      required: true,
       displayOptions: {
         show: {
           operation: ['calculateBilling'],
         },
       },
-      options: [
-        {
-          name: 'priceListSource',
-          displayName: 'Price List Data',
-          values: [
-            {
-              displayName: 'Field Name',
-              name: 'fieldName',
-              type: 'string',
-              default: 'priceList',
-              description: 'The name of the field containing price list data',
-            },
-          ],
+    },
+    {
+      displayName: 'Usage Data Field Name',
+      name: 'usageDataFieldName',
+      type: 'string',
+      default: 'usageData',
+      description: 'The name of the field containing usage data',
+      required: true,
+      displayOptions: {
+        show: {
+          operation: ['calculateBilling'],
         },
-        {
-          name: 'usageSource',
-          displayName: 'Usage Data',
-          values: [
-            {
-              displayName: 'Field Name',
-              name: 'fieldName',
-              type: 'string',
-              default: 'usageData',
-              description: 'The name of the field containing usage data',
-            },
-          ],
-        },
-      ],
+      },
     },
 
     // Match Configuration Section - For Calculate Billing Operation
@@ -273,37 +288,124 @@ export const nodeDescription: INodeTypeDescription = {
       },
       options: [
         {
-          name: 'matchFields',
-          displayName: 'Match Fields',
+          name: 'hierarchyLevels',
+          displayName: 'Hierarchy Matching Levels',
           values: [
             {
-              displayName: 'Price List Field',
-              name: 'priceListField',
-              type: 'string',
-              default: 'productId',
-              description: 'Field in price list to match on',
+              displayName: 'Hierarchy Levels',
+              name: 'level',
+              placeholder: 'Add Hierarchy Level',
+              type: 'fixedCollection',
+              typeOptions: {
+                multipleValues: true,
+              },
+              default: {},
+              description: 'Fields to match at each hierarchy level (top to bottom)',
+              options: [
+                {
+                  name: 'level',
+                  displayName: 'Level',
+                  values: [
+                    {
+                      displayName: 'Price List Field',
+                      name: 'priceListField',
+                      type: 'string',
+                      default: '',
+                      description: 'The key in the price list hierarchy at this level',
+                      required: true,
+                    },
+                    {
+                      displayName: 'Usage Field',
+                      name: 'usageField',
+                      type: 'string',
+                      default: '',
+                      description: 'Field in usage data containing value to match at this level',
+                      required: true,
+                    },
+                  ],
+                },
+              ],
             },
+          ],
+        },
+        {
+          name: 'partialMatchBehavior',
+          displayName: 'Partial Match Behavior',
+          values: [
             {
-              displayName: 'Usage Field',
-              name: 'usageField',
-              type: 'string',
-              default: 'productId',
-              description: 'Field in usage data to match on',
-            },
-            {
-              displayName: 'No Match Behavior',
-              name: 'noMatchBehavior',
+              displayName: 'Partial Match Behavior',
+              name: 'behavior',
               type: 'options',
               options: [
-                { name: 'Skip Record', value: 'skip' },
-                { name: 'Error', value: 'error' },
+                { name: 'Best Match (Match As Far As Possible)', value: 'bestMatch' },
+                { name: 'No Match (Require Full Path Match)', value: 'noMatch' },
               ],
-              default: 'skip',
-              description: 'What to do when no match is found',
+              default: 'noMatch',
+              description: 'What to do when only some levels in the hierarchy match',
+            },
+          ],
+        },
+        {
+          name: 'fieldMappings',
+          displayName: 'Field Mappings',
+          values: [
+            {
+              displayName: 'Field Mappings',
+              name: 'mappings',
+              placeholder: 'Add Field Mapping',
+              type: 'fixedCollection',
+              typeOptions: {
+                multipleValues: true,
+              },
+              default: {},
+              description: 'Map fields from usage data to output fields',
+              options: [
+                {
+                  name: 'mapping',
+                  displayName: 'Mapping',
+                  values: [
+                    {
+                      displayName: 'Source Field',
+                      name: 'sourceField',
+                      type: 'string',
+                      default: '',
+                      description: 'Field in usage data to map',
+                      required: true,
+                    },
+                    {
+                      displayName: 'Target Field',
+                      name: 'targetField',
+                      type: 'string',
+                      default: '',
+                      description:
+                        'Name of field in output (leave empty to keep source field name)',
+                      required: false,
+                    },
+                  ],
+                },
+              ],
             },
           ],
         },
       ],
+    },
+
+    // No Match Behavior - For Calculate Billing Operation (Independent setting)
+    {
+      displayName: 'No Match Behavior',
+      name: 'matchConfig.noMatchBehavior',
+      type: 'options',
+      options: [
+        { name: 'Skip Record', value: 'skip' },
+        { name: 'Error', value: 'error' },
+      ],
+      default: 'skip',
+      description: 'What to do when no matching price is found for a usage record',
+      displayOptions: {
+        show: {
+          operation: ['calculateBilling'],
+        },
+      },
     },
 
     // Calculation Configuration - For Calculate Billing Operation

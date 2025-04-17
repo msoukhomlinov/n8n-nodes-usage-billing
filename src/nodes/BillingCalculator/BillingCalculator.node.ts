@@ -35,6 +35,19 @@ export class BillingCalculator implements INodeType {
         ) as ColumnFilterConfig;
         const hierarchyConfig = this.getNodeParameter('hierarchyConfig', 0) as HierarchyConfig;
 
+        // Get column inclusion options
+        const columnMappingData = columnFilterConfig.includeOptions || {};
+        const includeAllColumns = columnMappingData.includeAllColumns !== false; // Default to true if not set
+
+        // Get the list of columns to include if not including all columns
+        let includeColumnsList: string[] = [];
+        if (!includeAllColumns && columnMappingData.includeColumnsList) {
+          const columnsString = columnMappingData.includeColumnsList as string;
+          if (columnsString.trim() !== '') {
+            includeColumnsList = columnsString.split(',').map((col) => col.trim());
+          }
+        }
+
         // Process price list from CSV data - this is now async
         returnData = await processPriceList.call(
           this,
@@ -42,11 +55,23 @@ export class BillingCalculator implements INodeType {
           csvParsingConfig,
           columnFilterConfig,
           hierarchyConfig,
+          includeAllColumns,
+          includeColumnsList,
         );
       } else if (operation === 'calculateBilling') {
         // Get configuration for Calculate Billing operation
-        const inputData = this.getNodeParameter('inputData', 0) as InputDataConfig;
+        const inputData: InputDataConfig = {
+          priceListFieldName: this.getNodeParameter('priceListFieldName', 0) as string,
+          usageDataFieldName: this.getNodeParameter('usageDataFieldName', 0) as string,
+        };
         const matchConfig = this.getNodeParameter('matchConfig', 0) as MatchConfig;
+
+        // Get the separate noMatchBehavior parameter and add it to matchConfig
+        const noMatchBehavior = this.getNodeParameter('matchConfig.noMatchBehavior', 0) as
+          | 'skip'
+          | 'error';
+        matchConfig.noMatchBehavior = noMatchBehavior;
+
         const calculationConfig = this.getNodeParameter(
           'calculationConfig',
           0,

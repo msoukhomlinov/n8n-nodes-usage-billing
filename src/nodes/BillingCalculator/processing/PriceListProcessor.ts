@@ -27,6 +27,8 @@ export async function processPriceList(
   csvParsingConfig: CsvParsingConfig,
   columnFilterConfig: ColumnFilterConfig,
   hierarchyConfig: HierarchyConfig,
+  includeAllColumns: boolean = true,
+  includeColumnsList: string[] = [],
 ): Promise<INodeExecutionData[]> {
   const returnData: INodeExecutionData[] = [];
 
@@ -147,6 +149,9 @@ export async function processPriceList(
         // Empty array if no hierarchy fields defined
       }
 
+      // Check if we should include all columns
+      const includeAllColumnsValue = includeAllColumns;
+
       // Important: Field renaming happens here in the data preparation phase.
       // We need to use original field names for grouping but only include
       // the renamed fields in the final output values.
@@ -172,16 +177,36 @@ export async function processPriceList(
           }
         }
 
-        // Add any additional fields specified in Column Filter
-        for (const mapping of additionalFields) {
-          const sourceKey = mapping.csvColumn;
-          // If target field is empty, use source field name
-          const targetKey = mapping.targetField || sourceKey;
+        // If includeAllColumns is true, include all fields from the original item
+        if (includeAllColumnsValue) {
+          _.forEach(item, (value, key) => {
+            if (!processedFields.has(key)) {
+              filteredItem[key] = value;
+              processedFields.add(key);
+            }
+          });
+        } else {
+          // First add columns from includeColumnsList if provided
+          if (includeColumnsList.length > 0) {
+            for (const columnName of includeColumnsList) {
+              if (_.has(item, columnName) && !processedFields.has(columnName)) {
+                filteredItem[columnName] = item[columnName];
+                processedFields.add(columnName);
+              }
+            }
+          }
 
-          // Only include if source exists in the item and not already processed
-          if (_.has(item, sourceKey) && !processedFields.has(targetKey)) {
-            filteredItem[targetKey] = item[sourceKey];
-            processedFields.add(targetKey);
+          // Then add additional fields specified in Column Filter
+          for (const mapping of additionalFields) {
+            const sourceKey = mapping.csvColumn;
+            // If target field is empty, use source field name
+            const targetKey = mapping.targetField || sourceKey;
+
+            // Only include if source exists in the item and not already processed
+            if (_.has(item, sourceKey) && !processedFields.has(targetKey)) {
+              filteredItem[targetKey] = item[sourceKey];
+              processedFields.add(targetKey);
+            }
           }
         }
 

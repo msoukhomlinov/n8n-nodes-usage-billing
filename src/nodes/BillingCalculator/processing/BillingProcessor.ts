@@ -10,11 +10,105 @@ import type {
   CalculationConfig,
   OutputConfig,
 } from '../interfaces';
-import { validatePriceListData, validateUsageRecordsData } from '../utils';
+import { validateUsageRecordsData } from '../utils';
 import { calculateBasicBilling, multiply, round } from '../utils/calculations';
 
 /**
- * Processes billing calculations based on price list and usage data
+ * Find a matching price item in a hierarchical price list
+ *
+ * This function traverses the hierarchy based on the specified matching levels
+ * and returns the matching price item if found.
+ */
+function findHierarchicalMatch(
+  usageRecord: UsageRecord,
+  priceListHierarchy: Record<string, unknown>,
+  matchConfig: MatchConfig,
+  currentLevel: number = 0,
+): PriceListItem | null {
+  // Base case: we've processed all levels or the hierarchy is empty
+  if (
+    !matchConfig.hierarchyLevels ||
+    !matchConfig.hierarchyLevels.level ||
+    currentLevel >= matchConfig.hierarchyLevels.level.length ||
+    !priceListHierarchy
+  ) {
+    return null;
+  }
+
+  // Get the current level's configuration
+  const levelConfig = matchConfig.hierarchyLevels.level[currentLevel];
+
+  // Get the value from the usage record for this level
+  const usageValue = String(usageRecord[levelConfig.usageField] || '');
+
+  // If no value for this level, we can't match
+  if (!usageValue) {
+    return null;
+  }
+
+  // Try to find a match at this level
+  if (usageValue in priceListHierarchy) {
+    const matchedBranch = priceListHierarchy[usageValue];
+
+    // If this is the last level, we expect the value to be an array of items
+    if (currentLevel === matchConfig.hierarchyLevels.level.length - 1) {
+      // At leaf level, return the first item if it's an array
+      if (Array.isArray(matchedBranch) && matchedBranch.length > 0) {
+        return matchedBranch[0] as PriceListItem;
+      }
+    } else {
+      // Still traversing, recurse to the next level
+      const nextLevelMatch = findHierarchicalMatch(
+        usageRecord,
+        matchedBranch as Record<string, unknown>,
+        matchConfig,
+        currentLevel + 1,
+      );
+
+      if (nextLevelMatch) {
+        return nextLevelMatch;
+      }
+    }
+  }
+
+  // No match at this level or deeper
+  // Check partial match behavior
+  if (matchConfig.partialMatchBehavior === 'bestMatch' && currentLevel > 0) {
+    // We could implement more sophisticated partial matching here
+    // For now, just return null
+    return null;
+  }
+
+  return null;
+}
+
+/**
+ * Apply field mappings to an output record
+ */
+function applyFieldMappings(
+  outputRecord: BillingRecord,
+  usageRecord: UsageRecord,
+  matchConfig: MatchConfig,
+): BillingRecord {
+  if (!matchConfig.fieldMappings?.mappings) {
+    return outputRecord;
+  }
+
+  // Apply each field mapping
+  for (const mapping of matchConfig.fieldMappings.mappings) {
+    const sourceField = mapping.sourceField;
+    const targetField = mapping.targetField || sourceField; // Use source as target if not specified
+
+    if (sourceField in usageRecord) {
+      outputRecord[targetField] = usageRecord[sourceField];
+    }
+  }
+
+  return outputRecord;
+}
+
+/**
+ * Processes billing calculations based on hierarchical price list and usage data
  */
 export function calculateBilling(
   this: IExecuteFunctions,
@@ -28,18 +122,24 @@ export function calculateBilling(
 
   try {
     // Extract price list and usage data
-    const priceList = items[0].json[inputData.priceListSource.fieldName] as PriceListItem[];
-    const usageData = items[0].json[inputData.usageSource.fieldName] as UsageRecord[];
+    const priceListData = items[0].json[inputData.priceListFieldName];
+    const usageData = items[0].json[inputData.usageDataFieldName] as UsageRecord[];
 
-    if (!Array.isArray(priceList) || !Array.isArray(usageData)) {
-      throw new NodeOperationError(this.getNode(), 'Invalid input data format');
+    // Check if we have valid usage data
+    if (!Array.isArray(usageData)) {
+      throw new NodeOperationError(this.getNode(), 'Invalid usage data format. Expected an array.');
     }
 
-    // Validate price list data
-    const priceListValidation = validatePriceListData(priceList);
-    if (!priceListValidation.valid) {
-      this.logger.warn(`Price list validation issues: ${priceListValidation.errors.join(', ')}`);
+    // Verify price list is a hierarchical structure
+    if (typeof priceListData !== 'object' || priceListData === null) {
+      throw new NodeOperationError(
+        this.getNode(),
+        'Invalid price list format. Expected a hierarchical object structure.',
+      );
     }
+
+    // Cast price list to the expected type
+    const hierarchicalPriceList = priceListData as Record<string, unknown>;
 
     // Validate usage data
     const usageValidation = validateUsageRecordsData(usageData);
@@ -47,14 +147,7 @@ export function calculateBilling(
       this.logger.warn(`Usage data validation issues: ${usageValidation.errors.join(', ')}`);
     }
 
-    // Continue processing even with validation issues, but include validation status in the output
-
-    // Use lodash to create an efficient lookup table for price list items
-    const priceIndex = _.keyBy(priceList, (item) =>
-      String(item[matchConfig.matchFields.priceListField]),
-    );
-
-    // Track processing results
+    // Initialize processing summary
     const processingSummary = {
       totalRecords: usageData.length,
       processedRecords: 0,
@@ -65,16 +158,19 @@ export function calculateBilling(
     // Process each usage record
     const processedRecords = _.flatMap(usageData, (usage) => {
       try {
-        const matchKey = String(usage[matchConfig.matchFields.usageField]);
-        const matchedPrice = priceIndex[matchKey];
+        // Find matching price in hierarchical structure
+        const matchedPrice = findHierarchicalMatch(usage, hierarchicalPriceList, matchConfig);
 
         // Handle no match scenario
         if (!matchedPrice) {
-          if (matchConfig.matchFields.noMatchBehavior === 'error') {
-            throw new NodeOperationError(this.getNode(), `No matching price found for ${matchKey}`);
+          if (matchConfig.noMatchBehavior === 'error') {
+            throw new NodeOperationError(
+              this.getNode(),
+              `No matching price found for usage record`,
+            );
           }
           processingSummary.skippedRecords++;
-          return []; // Skip record (empty array in flatMap = filter out)
+          return []; // Skip record
         }
 
         // Get quantity and unit price
@@ -96,22 +192,18 @@ export function calculateBilling(
         if (calculationConfig.calculationMethod.method === 'basic') {
           totalCost = calculateBasicBilling(quantity, unitPrice);
         } else {
-          // For tiered pricing, we'll do a simplified version for now
-          // In a production system, we'd implement proper tiered pricing logic
+          // For tiered pricing
           totalCost = multiply(quantity, unitPrice);
         }
 
         // Ensure the total cost is properly rounded to 2 decimal places for currency
         totalCost = round(totalCost, 2);
 
-        // Build output record using lodash merge to simplify
-        // This will prioritize usage data fields but include price list fields where not present
-        const outputRecord = _.pick(
-          // Merge usage and price data, with usage taking precedence
-          _.merge({}, matchedPrice, usage),
-          // Pick only the fields specified in the output config
-          outputConfig.outputFields.fields,
-        );
+        // Start with the base output record containing selected fields from the price list
+        let outputRecord = _.pick(matchedPrice, outputConfig.outputFields.fields) as BillingRecord;
+
+        // Apply field mappings from usage data
+        outputRecord = applyFieldMappings(outputRecord, usage, matchConfig);
 
         // Add the calculated total
         outputRecord[outputConfig.outputFields.totalField] = totalCost;
@@ -123,9 +215,7 @@ export function calculateBilling(
           {
             json: {
               ...outputRecord,
-              // Add validation metadata
               _validationStatus: {
-                priceListValid: priceListValidation.valid,
                 usageDataValid: usageValidation.valid,
               },
             },
@@ -133,10 +223,10 @@ export function calculateBilling(
         ];
       } catch (recordError) {
         processingSummary.errorRecords++;
-        if (matchConfig.matchFields.noMatchBehavior === 'error') {
+        if (matchConfig.noMatchBehavior === 'error') {
           throw recordError;
         }
-        return []; // Skip record on error if not explicitly configured to fail
+        return []; // Skip record on error
       }
     });
 
@@ -151,8 +241,6 @@ export function calculateBilling(
           message: 'No billing records could be processed',
           summary: processingSummary,
           validationStatus: {
-            priceListValid: priceListValidation.valid,
-            priceListErrors: priceListValidation.errors,
             usageDataValid: usageValidation.valid,
             usageDataErrors: usageValidation.errors,
           },
@@ -184,11 +272,13 @@ export function processBillingRecord(
   calculationConfig: CalculationConfig,
   outputConfig: OutputConfig,
 ): BillingRecord | null {
-  const matchKey = String(usage[matchConfig.matchFields.usageField]);
+  // For backward compatibility, if we're using a Map for simple lookups,
+  // we should be using the first level's usage field as the match key
+  const matchKey = String(usage[matchConfig.hierarchyLevels.level[0].usageField]);
   const matchedPrice = priceIndex.get(matchKey);
 
   if (!matchedPrice) {
-    if (matchConfig.matchFields.noMatchBehavior === 'error') {
+    if (matchConfig.noMatchBehavior === 'error') {
       throw new NodeOperationError(this.getNode(), `No matching price found for ${matchKey}`);
     }
     return null; // Skip record
@@ -219,11 +309,16 @@ export function processBillingRecord(
   // Ensure the total cost is properly rounded to 2 decimal places for currency
   totalCost = round(totalCost, 2);
 
-  // Build output record
-  const outputRecord: BillingRecord = {};
+  // Build output record - start with fields from the price list
+  let outputRecord: BillingRecord = {};
   for (const field of outputConfig.outputFields.fields) {
-    outputRecord[field] = usage[field] || matchedPrice[field];
+    outputRecord[field] = matchedPrice[field];
   }
+
+  // Apply field mappings from usage data
+  outputRecord = applyFieldMappings(outputRecord, usage, matchConfig);
+
+  // Add the calculated total
   outputRecord[outputConfig.outputFields.totalField] = totalCost;
 
   return outputRecord;

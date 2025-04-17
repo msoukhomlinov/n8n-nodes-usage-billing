@@ -27,7 +27,7 @@ export interface CsvParsingConfig {
 }
 
 export interface ColumnFilterConfig {
-  mappings: {
+  mappings?: {
     columns: {
       column:
         | Array<{
@@ -41,6 +41,10 @@ export interface ColumnFilterConfig {
             dataType: 'string' | 'number' | 'boolean';
           };
     };
+  };
+  includeOptions?: {
+    includeAllColumns?: boolean;
+    includeColumnsList?: string;
   };
 }
 
@@ -58,6 +62,7 @@ export interface HierarchyConfig {
           };
     };
   };
+  includeAllColumns?: boolean;
 }
 
 export interface LoadPriceListConfig {
@@ -68,15 +73,24 @@ export interface LoadPriceListConfig {
 
 // Calculate Billing Operation Interfaces
 export interface InputDataConfig {
-  priceListSource: { fieldName: string };
-  usageSource: { fieldName: string };
+  priceListFieldName: string;
+  usageDataFieldName: string;
 }
 
 export interface MatchConfig {
-  matchFields: {
-    priceListField: string;
-    usageField: string;
-    noMatchBehavior: string;
+  hierarchyLevels: {
+    level: Array<{
+      priceListField: string;
+      usageField: string;
+    }>;
+  };
+  noMatchBehavior: 'skip' | 'error';
+  partialMatchBehavior: 'bestMatch' | 'noMatch';
+  fieldMappings?: {
+    mappings: Array<{
+      sourceField: string; // Field in usage data
+      targetField: string; // Name in output
+    }>;
   };
 }
 

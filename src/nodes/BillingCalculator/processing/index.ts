@@ -1,2 +1,3 @@
-export * from './BillingProcessor';
-export * from './PriceListProcessor';
+export { processPriceList } from './PriceListProcessor';
+export { calculateBilling } from './BillingProcessor';
+export { defineHierarchy } from './HierarchyProcessor';

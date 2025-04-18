@@ -33,6 +33,12 @@ export const nodeDescription: INodeTypeDescription = {
       noDataExpression: true,
       options: [
         {
+          name: 'Define Hierarchy',
+          value: 'defineHierarchy',
+          description: 'Create a reusable hierarchy structure for both price list and usage data',
+          action: 'Create a reusable hierarchy structure',
+        },
+        {
           name: 'Load Price List',
           value: 'loadPriceList',
           description: 'Import and transform price list data from CSV to JSON format',
@@ -45,7 +51,91 @@ export const nodeDescription: INodeTypeDescription = {
           action: 'Calculate billing based on usage and price data',
         },
       ],
-      default: 'loadPriceList',
+      default: 'defineHierarchy',
+    },
+
+    // Define Hierarchy Operation - Configuration
+    {
+      displayName: 'Hierarchy Name',
+      name: 'hierarchyName',
+      type: 'string',
+      default: '',
+      required: true,
+      displayOptions: {
+        show: {
+          operation: ['defineHierarchy'],
+        },
+      },
+      description: 'Name of the hierarchy structure to reference in other operations',
+    },
+    {
+      displayName: 'Description',
+      name: 'hierarchyDescription',
+      type: 'string',
+      default: '',
+      displayOptions: {
+        show: {
+          operation: ['defineHierarchy'],
+        },
+      },
+      description: 'Optional description of what this hierarchy represents',
+    },
+    {
+      displayName: 'Hierarchy Levels',
+      name: 'hierarchyLevels',
+      type: 'fixedCollection',
+      default: {},
+      displayOptions: {
+        show: {
+          operation: ['defineHierarchy'],
+        },
+      },
+      options: [
+        {
+          name: 'level',
+          displayName: 'Hierarchy Levels (Ordered by Priority)',
+          values: [
+            {
+              displayName: 'Hierarchy Levels',
+              name: 'level',
+              placeholder: 'Add Hierarchy Level',
+              type: 'fixedCollection',
+              typeOptions: {
+                multipleValues: true,
+              },
+              default: {},
+              description:
+                'Fields to group by, in hierarchical order (first level at the top, more specific levels below)',
+              options: [
+                {
+                  name: 'level',
+                  displayName: 'Level',
+                  values: [
+                    {
+                      displayName: 'Identifier Field',
+                      name: 'identifierField',
+                      type: 'string',
+                      default: '',
+                      description:
+                        'Field name to use for this hierarchy level (e.g., ProductName, Category, etc.)',
+                      required: true,
+                    },
+                    {
+                      displayName: 'Output Field Name (Optional)',
+                      name: 'outputField',
+                      type: 'string',
+                      default: '',
+                      description:
+                        'Rename this field in the output (leave empty to keep the original field name)',
+                      required: false,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
     },
 
     // Load Price List Operation - CSV Parsing Configuration
@@ -68,7 +158,8 @@ export const nodeDescription: INodeTypeDescription = {
               displayName: 'Input Data Property Name',
               name: 'fieldName',
               type: 'string',
-              default: 'csvdata',
+              default: '',
+              placeholder: 'csvdata',
               description:
                 'The name of the field containing CSV data (e.g., csvdata, data, or rawCsv)',
             },
@@ -91,63 +182,20 @@ export const nodeDescription: INodeTypeDescription = {
       ],
     },
 
-    // Load Price List Operation - Hierarchy Configuration (moved before Column Filter)
+    // Hierarchy Config Field Name for Load Price List
     {
-      displayName: 'Hierarchy Configuration',
-      name: 'hierarchyConfig',
-      type: 'fixedCollection',
-      default: {},
+      displayName: 'Hierarchy Config Field Name',
+      name: 'hierarchyConfigFieldName',
+      type: 'string',
+      default: 'hierarchyConfig',
       displayOptions: {
         show: {
           operation: ['loadPriceList'],
         },
       },
-      options: [
-        {
-          name: 'levels',
-          displayName: 'Hierarchy Levels (Ordered by Priority)',
-          values: [
-            {
-              displayName: 'Hierarchy Levels',
-              name: 'levelDefinitions',
-              placeholder: 'Add Hierarchy Level',
-              type: 'fixedCollection',
-              typeOptions: {
-                multipleValues: true,
-              },
-              default: {},
-              description:
-                'Fields to group by, in hierarchical order (first level at the top, more specific levels below)',
-              options: [
-                {
-                  name: 'level',
-                  displayName: 'Level',
-                  values: [
-                    {
-                      displayName: 'Source Field',
-                      name: 'identifierField',
-                      type: 'string',
-                      default: '',
-                      description:
-                        'Field in your data to use for this hierarchy level (e.g., ProductName, Category, etc.)',
-                      required: true,
-                    },
-                    {
-                      displayName: 'Output Field Name (Optional)',
-                      name: 'outputField',
-                      type: 'string',
-                      default: '',
-                      description:
-                        'Rename this field in the output (leave empty to keep the original field name)',
-                      required: false,
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ],
+      description:
+        'The name of the field containing the hierarchy configuration from Define Hierarchy',
+      required: true,
     },
 
     // Load Price List Operation - Column Filter (renamed from Column Mapping)
@@ -275,6 +323,22 @@ export const nodeDescription: INodeTypeDescription = {
       },
     },
 
+    // Hierarchy Config Field Name for Calculate Billing
+    {
+      displayName: 'Hierarchy Config Field Name',
+      name: 'hierarchyConfigFieldName',
+      type: 'string',
+      default: 'hierarchyConfig',
+      displayOptions: {
+        show: {
+          operation: ['calculateBilling'],
+        },
+      },
+      description:
+        'The name of the field containing the hierarchy configuration from Define Hierarchy',
+      required: true,
+    },
+
     // Match Configuration Section - For Calculate Billing Operation
     {
       displayName: 'Match Configuration',
@@ -346,6 +410,23 @@ export const nodeDescription: INodeTypeDescription = {
           ],
         },
         {
+          name: 'noMatchBehavior',
+          displayName: 'No Match Behavior',
+          values: [
+            {
+              displayName: 'No Match Behavior',
+              name: 'behavior',
+              type: 'options',
+              options: [
+                { name: 'Skip Record', value: 'skip' },
+                { name: 'Error', value: 'error' },
+              ],
+              default: 'skip',
+              description: 'What to do when no matching price is found for a usage record',
+            },
+          ],
+        },
+        {
           name: 'fieldMappings',
           displayName: 'Field Mappings',
           values: [
@@ -388,24 +469,6 @@ export const nodeDescription: INodeTypeDescription = {
           ],
         },
       ],
-    },
-
-    // No Match Behavior - For Calculate Billing Operation (Independent setting)
-    {
-      displayName: 'No Match Behavior',
-      name: 'matchConfig.noMatchBehavior',
-      type: 'options',
-      options: [
-        { name: 'Skip Record', value: 'skip' },
-        { name: 'Error', value: 'error' },
-      ],
-      default: 'skip',
-      description: 'What to do when no matching price is found for a usage record',
-      displayOptions: {
-        show: {
-          operation: ['calculateBilling'],
-        },
-      },
     },
 
     // Calculation Configuration - For Calculate Billing Operation

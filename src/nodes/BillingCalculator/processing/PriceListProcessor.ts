@@ -6,6 +6,8 @@ import type {
   CsvParsingConfig,
   ColumnFilterConfig,
   HierarchyConfig,
+  HierarchyLevel,
+  SharedHierarchyConfig,
 } from '../interfaces';
 import { validatePriceListData } from '../utils';
 import _ from 'lodash';
@@ -27,7 +29,7 @@ export async function processPriceList(
   csvParsingConfig: CsvParsingConfig,
   columnFilterConfig: ColumnFilterConfig,
   hierarchyConfig: HierarchyConfig,
-  includeAllColumns: boolean = true,
+  includeAllColumns = true,
   includeColumnsList: string[] = [],
 ): Promise<INodeExecutionData[]> {
   const returnData: INodeExecutionData[] = [];
@@ -198,106 +200,98 @@ export async function processPriceList(
 
           // Then add additional fields specified in Column Filter
           for (const mapping of additionalFields) {
-            const sourceKey = mapping.csvColumn;
-            // If target field is empty, use source field name
-            const targetKey = mapping.targetField || sourceKey;
+            const sourceField = mapping.csvColumn;
+            const targetField = mapping.targetField || sourceField;
 
-            // Only include if source exists in the item and not already processed
-            if (_.has(item, sourceKey) && !processedFields.has(targetKey)) {
-              filteredItem[targetKey] = item[sourceKey];
-              processedFields.add(targetKey);
+            if (_.has(item, sourceField) && !processedFields.has(targetField)) {
+              // Apply data type conversion if needed
+              let value = item[sourceField];
+
+              switch (mapping.dataType) {
+                case 'number':
+                  value = Number.parseFloat(String(value));
+                  break;
+                case 'boolean':
+                  value = ['true', 'yes', '1', true, 1].includes(value);
+                  break;
+                // String is the default type
+              }
+
+              filteredItem[targetField] = value;
+              processedFields.add(targetField);
             }
           }
-        }
-
-        // If no fields specified at all, use entire item
-        if (hierarchyIdentifiers.length === 0 && additionalFields.length === 0) {
-          return item;
         }
 
         return filteredItem;
       });
     }
 
-    // Validate the JSON data against our schema
-    const validation = validatePriceListData(jsonArray);
-    if (!validation.valid) {
-      this.logger.warn(`Price list validation issues: ${validation.errors.join(', ')}`);
+    // Ensure we have valid price list data
+    validatePriceListData(jsonArray);
 
-      // We'll continue processing but add validation issues to the output
-      // This allows workflows to decide how to handle validation issues
-    }
+    // Process raw data into hierarchical structure
+    const hierarchicalData = buildHierarchicalPriceList(jsonArray, hierarchyConfig);
 
-    // Build hierarchical structure from flat data
-    const priceList = buildHierarchicalPriceList(jsonArray, hierarchyConfig);
+    // Convert back to n8n output format
+    // Create a copy of input item but replace json with our processed data
+    const item = { ...items[0] };
 
-    // Helper function to clean up the hierarchical price list - removing original fields that have renamed versions
-    function cleanupHierarchy(data: unknown): unknown {
-      // Base case: not an object
-      if (!data || typeof data !== 'object') {
-        return data;
-      }
+    // Preserve the original flat price list array
+    item.json = {
+      priceList: hierarchicalData,
+      flatPriceList: jsonArray,
+    };
 
-      // Handle arrays (these are typically leaf nodes with data items)
-      if (Array.isArray(data)) {
-        return data.map((item) => {
-          if (item && typeof item === 'object' && !Array.isArray(item)) {
-            // Create a clean copy without the original fields when there are renamed versions
-            const cleanItem: Record<string, unknown> = {};
+    // If this processed data came from a shared hierarchy, also include the hierarchy config
+    // Look for the 'hierarchyConfig' field in the input
+    if (items[0].json.hierarchyConfig) {
+      // Add more robust logging
+      this.logger.info(
+        'DEBUG: Found shared hierarchy configuration in input, preserving it in output',
+      );
 
-            // First copy all properties
-            Object.assign(cleanItem, item);
+      // Include the shared hierarchy configuration in the output
+      // Make a deep copy to avoid reference issues
+      try {
+        const hierarchyConfig = items[0].json.hierarchyConfig;
+        item.json.hierarchyConfig = JSON.parse(JSON.stringify(hierarchyConfig));
 
-            // Then remove fields that have renamed versions
-            for (const [original, renamed] of fieldRenameMap.entries()) {
-              if (original in cleanItem && renamed in cleanItem && original !== renamed) {
-                delete cleanItem[original];
-              }
-            }
+        // Also preserve the name if available
+        if (items[0].json.hierarchyName) {
+          item.json.hierarchyName = items[0].json.hierarchyName;
+          this.logger.info(`DEBUG: Preserved hierarchy name: ${items[0].json.hierarchyName}`);
+        }
 
-            return cleanItem;
+        // Log the preserved hierarchy structure
+        this.logger.info('DEBUG: Preserved hierarchy config in output');
+        if (
+          hierarchyConfig &&
+          typeof hierarchyConfig === 'object' &&
+          'levels' in (hierarchyConfig as IDataObject)
+        ) {
+          const levels = (hierarchyConfig as IDataObject).levels;
+          if (Array.isArray(levels)) {
+            this.logger.info(`DEBUG: Config contains ${levels.length} hierarchy levels`);
           }
-          // Recursively process nested objects
-          return typeof item === 'object' ? cleanupHierarchy(item) : item;
-        });
+        }
+      } catch (e) {
+        this.logger.warn(`DEBUG: Error preserving hierarchy config: ${(e as Error).message}`);
       }
-
-      // Handle regular objects (these are hierarchy structure nodes)
-      const result: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
-        result[key] = typeof value === 'object' && value !== null ? cleanupHierarchy(value) : value;
-      }
-
-      return result;
     }
 
-    // Apply cleanup to remove original fields when they have renamed versions
-    let cleanedPriceList = priceList;
-    if (fieldRenameMap.size > 0) {
-      // Only clean up if we have field renames
-      cleanedPriceList = cleanupHierarchy(priceList) as Record<string, unknown>;
-    }
-
-    // Return the processed price list with cleaned data
-    returnData.push({
-      json: {
-        priceList: cleanedPriceList,
-        success: true,
-        count: jsonArray.length,
-        valid: validation.valid,
-        validationErrors: validation.errors,
-      },
-    });
-
+    returnData.push(item);
     return returnData;
   } catch (error) {
-    // Handle any errors
+    // Propagate original error if it's already a NodeOperationError
     if (error instanceof NodeOperationError) {
       throw error;
     }
+
+    // Otherwise wrap in NodeOperationError
     throw new NodeOperationError(
       this.getNode(),
-      `Error processing price list: ${(error as Error).message}`,
+      `Failed to process price list: ${(error as Error).message}`,
     );
   }
 }

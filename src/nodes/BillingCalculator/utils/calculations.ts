@@ -43,7 +43,7 @@ export function percentage(value: number | string, percent: number | string): nu
 /**
  * Round to specified number of decimal places
  */
-export function round(value: number | string, decimalPlaces: number = 2): number {
+export function round(value: number | string, decimalPlaces = 2): number {
   return new Decimal(value).toDecimalPlaces(decimalPlaces).toNumber();
 }
 

@@ -17,6 +17,25 @@ export interface MatchResult {
   errorMessage?: string;
 }
 
+// Shared Hierarchy Types
+export interface HierarchyLevel {
+  identifierField: string;
+  outputField?: string;
+  priority?: number; // Optional priority for sorting levels
+}
+
+export interface SharedHierarchyConfig {
+  name: string;
+  description?: string;
+  levels: HierarchyLevel[];
+}
+
+export interface HierarchyOutput {
+  name: string;
+  description?: string;
+  hierarchyConfig: HierarchyLevel[];
+}
+
 // Load Price List Operation Interfaces
 export interface CsvParsingConfig {
   csvSource: {
@@ -75,6 +94,7 @@ export interface LoadPriceListConfig {
 export interface InputDataConfig {
   priceListFieldName: string;
   usageDataFieldName: string;
+  hierarchyConfigFieldName?: string; // Added for shared hierarchy configuration
 }
 
 export interface MatchConfig {
@@ -84,14 +104,17 @@ export interface MatchConfig {
       usageField: string;
     }>;
   };
-  noMatchBehavior: 'skip' | 'error';
-  partialMatchBehavior: 'bestMatch' | 'noMatch';
+  noMatchBehavior?: 'skip' | 'error' | { behavior: 'skip' | 'error' };
+  partialMatchBehavior?: 'bestMatch' | 'noMatch' | { behavior: 'bestMatch' | 'noMatch' };
   fieldMappings?: {
     mappings: Array<{
       sourceField: string; // Field in usage data
       targetField: string; // Name in output
     }>;
   };
+  useWildcardMatching?: boolean; // Whether to allow wildcard matching
+  wildcardValue?: string; // Value to use as wildcard (default: '*')
+  hierarchicalFallback?: boolean; // Whether to allow falling back to parent level matches
 }
 
 export interface CalculationConfig {
@@ -109,4 +132,15 @@ export interface OutputConfig {
   };
 }
 
-export type OperationType = 'loadPriceList' | 'calculateBilling';
+// Field mapping for applying data from usage and price records to output
+export interface FieldMapping {
+  priceField: string;
+  quantityField: string;
+  outputFields?: Array<{
+    sourceField: string;
+    targetField: string;
+    sourceObject?: 'usage' | 'price';
+  }>;
+}
+
+export type OperationType = 'loadPriceList' | 'calculateBilling' | 'defineHierarchy';

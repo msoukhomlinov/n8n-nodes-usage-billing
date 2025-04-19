@@ -41,7 +41,64 @@ function extractHierarchyLevels(
     logger.info(`DEBUG: Extracting levels from: ${JSON.stringify(hierarchyConfigData)}`);
   }
 
-  // Case 1: If it has a direct levels array containing HierarchyLevel objects
+  // Case 1: Standard hierarchyConfig format (primary format from defineHierarchy)
+  if (
+    'hierarchyConfig' in hierarchyConfigData &&
+    typeof hierarchyConfigData.hierarchyConfig === 'object' &&
+    hierarchyConfigData.hierarchyConfig !== null
+  ) {
+    const sharedConfig = hierarchyConfigData.hierarchyConfig as IDataObject;
+
+    if (logger) {
+      logger.info('DEBUG: Found hierarchyConfig property, checking for levels');
+    }
+
+    if ('levels' in sharedConfig && Array.isArray(sharedConfig.levels)) {
+      const levelsArray = sharedConfig.levels;
+      if (logger) {
+        logger.info(`DEBUG: Found standard hierarchyConfig with ${levelsArray.length} levels`);
+      }
+
+      // Validate the levels have the required fields
+      const validLevels = (levelsArray as IDataObject[]).filter(
+        (level) =>
+          level && typeof level === 'object' && 'identifierField' in level && level.identifierField,
+      );
+
+      if (validLevels.length > 0) {
+        // Ensure outputField is set even if it wasn't in the original data
+        return validLevels.map((level) => ({
+          identifierField: level.identifierField as string,
+          outputField: (level.outputField as string) || (level.identifierField as string),
+        })) as unknown as HierarchyLevel[];
+      }
+    }
+  }
+
+  // Case 2: If the object itself is a SharedHierarchyConfig
+  if (
+    'name' in hierarchyConfigData &&
+    'levels' in hierarchyConfigData &&
+    Array.isArray(hierarchyConfigData.levels)
+  ) {
+    const levelsArray = hierarchyConfigData.levels;
+    if (logger) {
+      logger.info(`DEBUG: Found direct SharedHierarchyConfig with ${levelsArray.length} levels`);
+    }
+
+    // Check if it's already an array of HierarchyLevel objects
+    if (levelsArray.length > 0) {
+      const firstItem = levelsArray[0];
+      if (typeof firstItem === 'object' && firstItem !== null && 'identifierField' in firstItem) {
+        if (logger) {
+          logger.info('DEBUG: Using HierarchyLevel objects directly from SharedHierarchyConfig');
+        }
+        return levelsArray as unknown as HierarchyLevel[];
+      }
+    }
+  }
+
+  // Case 3: If it has a direct levels array containing HierarchyLevel objects
   if ('levels' in hierarchyConfigData && Array.isArray(hierarchyConfigData.levels)) {
     const levelsArray = hierarchyConfigData.levels;
     if (logger) {
@@ -60,26 +117,7 @@ function extractHierarchyLevels(
     }
   }
 
-  // Case 2: It might be nested under hierarchyConfig property
-  if (
-    'hierarchyConfig' in hierarchyConfigData &&
-    typeof hierarchyConfigData.hierarchyConfig === 'object' &&
-    hierarchyConfigData.hierarchyConfig !== null
-  ) {
-    const nestedConfig = hierarchyConfigData.hierarchyConfig as IDataObject;
-
-    // Case 2.1: Levels array in nested config
-    if ('levels' in nestedConfig && Array.isArray(nestedConfig.levels)) {
-      if (logger) {
-        logger.info(
-          `DEBUG: Found levels in nested config with ${nestedConfig.levels.length} items`,
-        );
-      }
-      return nestedConfig.levels as unknown as HierarchyLevel[];
-    }
-  }
-
-  // Case 3: Check if the structure follows HierarchyConfig format
+  // Case 4: Check if the structure follows HierarchyConfig format
   if (
     'levels' in hierarchyConfigData &&
     typeof hierarchyConfigData.levels === 'object' &&
@@ -87,40 +125,77 @@ function extractHierarchyLevels(
   ) {
     const levelsObj = hierarchyConfigData.levels as IDataObject;
 
-    // Case 3.1: Has levelDefinitions structure
+    if (logger) {
+      logger.info('DEBUG: Examining levels object structure');
+    }
+
+    // Case 4.1: Has levelDefinitions structure
     if (
       'levelDefinitions' in levelsObj &&
       typeof levelsObj.levelDefinitions === 'object' &&
       levelsObj.levelDefinitions !== null
     ) {
-      const levelDefs = (levelsObj.levelDefinitions as IDataObject).level;
+      const levelDefs = levelsObj.levelDefinitions as IDataObject;
 
-      // Convert to HierarchyLevel[] format
-      if (Array.isArray(levelDefs)) {
-        if (logger) {
-          logger.info(`DEBUG: Found level definitions array with ${levelDefs.length} items`);
-        }
-        return (levelDefs as IDataObject[]).map((def) => ({
-          identifierField: def.identifierField as string,
-          outputField: (def.outputField as string) || (def.identifierField as string),
-        }));
+      if (logger) {
+        logger.info(`DEBUG: Found levelDefinitions: ${JSON.stringify(levelDefs)}`);
       }
 
-      // Single level definition
-      if (typeof levelDefs === 'object' && levelDefs !== null) {
-        if (logger) {
-          logger.info('DEBUG: Found single level definition');
+      // Check if it has a "level" property that contains the definitions
+      if ('level' in levelDefs) {
+        const levelData = levelDefs.level;
+
+        // Convert to HierarchyLevel[] format
+        if (Array.isArray(levelData)) {
+          if (logger) {
+            logger.info(`DEBUG: Found level definitions array with ${levelData.length} items`);
+          }
+          return (levelData as IDataObject[]).map((def) => ({
+            identifierField: def.identifierField as string,
+            outputField: (def.outputField as string) || (def.identifierField as string),
+          }));
         }
-        return [
-          {
-            identifierField: (levelDefs as IDataObject).identifierField as string,
-            outputField:
-              ((levelDefs as IDataObject).outputField as string) ||
-              ((levelDefs as IDataObject).identifierField as string),
-          },
-        ];
+
+        // Single level definition
+        if (typeof levelData === 'object' && levelData !== null) {
+          if (logger) {
+            logger.info('DEBUG: Found single level definition');
+          }
+          return [
+            {
+              identifierField: (levelData as IDataObject).identifierField as string,
+              outputField:
+                ((levelData as IDataObject).outputField as string) ||
+                ((levelData as IDataObject).identifierField as string),
+            },
+          ];
+        }
       }
     }
+  }
+
+  // Case 5: Check if it's already a HierarchyLevel object itself
+  if ('identifierField' in hierarchyConfigData) {
+    if (logger) {
+      logger.info('DEBUG: Found direct HierarchyLevel object');
+    }
+    return [
+      {
+        identifierField: hierarchyConfigData.identifierField as string,
+        outputField:
+          (hierarchyConfigData.outputField as string) ||
+          (hierarchyConfigData.identifierField as string),
+      },
+    ];
+  }
+
+  // Case 6: Check if this is the parent object of a nested structure (level.level.level)
+  if ('level' in hierarchyConfigData && typeof hierarchyConfigData.level === 'object') {
+    if (logger) {
+      logger.info('DEBUG: Found potential nested level structure, recursing');
+    }
+    // Recurse into this structure
+    return extractHierarchyLevels(hierarchyConfigData.level as IDataObject, logger);
   }
 
   // No recognizable structure found
@@ -337,64 +412,54 @@ export function calculateBilling(
   );
   let hierarchyConfigData = null;
 
-  // Ensure hierarchyConfigFieldName is a string
+  // Try to get hierarchy configuration data
   if (hierarchyConfigFieldName && typeof hierarchyConfigFieldName === 'string') {
-    // Normal case - hierarchyConfigFieldName is a string as expected
+    // Standard case - look up by field name
     hierarchyConfigData = inputData[hierarchyConfigFieldName];
-    this.logger.info(`DEBUG: Lookup using string field name: ${hierarchyConfigFieldName}`);
+    this.logger.info(`DEBUG: Looking up hierarchy using field name: ${hierarchyConfigFieldName}`);
   } else if (hierarchyConfigFieldName && typeof hierarchyConfigFieldName === 'object') {
-    // If hierarchyConfigFieldName is an object, it might be a parameter object
-    // Try to extract useful information from it
+    // If hierarchyConfigFieldName is an object, it might be the hierarchy config itself
     this.logger.info(
       `DEBUG: hierarchyConfigFieldName is an object: ${JSON.stringify(hierarchyConfigFieldName)}`,
     );
 
-    // Check if the object itself is the hierarchy configuration (has name and levels)
-    if (
-      'levels' in (hierarchyConfigFieldName as IDataObject) &&
-      Array.isArray((hierarchyConfigFieldName as IDataObject).levels)
-    ) {
-      // The object itself appears to be the hierarchy config
+    // Check if the object itself is a valid hierarchy configuration
+    if ('levels' in (hierarchyConfigFieldName as IDataObject)) {
       hierarchyConfigData = hierarchyConfigFieldName;
+      this.logger.info('DEBUG: Using hierarchyConfigFieldName directly as it contains levels');
+    }
+    // Check if it contains a hierarchyConfig property (standard format)
+    else if (
+      'hierarchyConfig' in (hierarchyConfigFieldName as IDataObject) &&
+      (hierarchyConfigFieldName as IDataObject).hierarchyConfig !== null
+    ) {
+      hierarchyConfigData = (hierarchyConfigFieldName as IDataObject).hierarchyConfig;
       this.logger.info(
-        'DEBUG: Using hierarchyConfigFieldName directly as it contains levels array',
+        'DEBUG: Using hierarchyConfig property from hierarchyConfigFieldName object',
       );
     }
-    // Check for common property patterns in parameter objects
+    // If it has a name property, try using that as a field name
     else if ('name' in (hierarchyConfigFieldName as IDataObject)) {
-      // If it has a name property, first try to use that as a field name lookup
       const fieldName = (hierarchyConfigFieldName as IDataObject).name as string;
-      this.logger.info(`DEBUG: Checking name property as field name: ${fieldName}`);
-
-      // Try to look up by field name
       hierarchyConfigData = inputData[fieldName];
-
-      // If lookup fails but the original object has a levels array, it might be the hierarchy itself
-      if (
-        !hierarchyConfigData &&
-        'levels' in (hierarchyConfigFieldName as IDataObject) &&
-        Array.isArray((hierarchyConfigFieldName as IDataObject).levels)
-      ) {
-        hierarchyConfigData = hierarchyConfigFieldName;
-        this.logger.info(
-          'DEBUG: Using hierarchyConfigFieldName with name+levels directly as hierarchy config',
-        );
-      } else {
-        this.logger.info(`DEBUG: Using name property as field name: ${fieldName}`);
-      }
-    } else if ('value' in (hierarchyConfigFieldName as IDataObject)) {
-      const fieldName = (hierarchyConfigFieldName as IDataObject).value as string;
-      hierarchyConfigData = inputData[fieldName];
-      this.logger.info(`DEBUG: Using value property: ${fieldName}`);
-    } else {
-      // If hierarchyConfigFieldName is supplied as the actual hierarchy config object
-      hierarchyConfigData = hierarchyConfigFieldName;
-      this.logger.info('DEBUG: Using hierarchyConfigFieldName object as the config directly');
+      this.logger.info(`DEBUG: Using name property as field name: ${fieldName}`);
     }
   } else {
     // Default to 'hierarchyConfig' if not specified
     hierarchyConfigData = inputData.hierarchyConfig;
     this.logger.info('DEBUG: Using default field name: hierarchyConfig');
+
+    // If not found, try common alternative field names
+    if (!hierarchyConfigData) {
+      const commonHierarchyFields = ['hierarchy', 'hierarchyLevels'];
+      for (const field of commonHierarchyFields) {
+        if (inputData[field]) {
+          hierarchyConfigData = inputData[field];
+          this.logger.info(`DEBUG: Found hierarchy data in common field: ${field}`);
+          break;
+        }
+      }
+    }
   }
 
   if (!hierarchyConfigData) {

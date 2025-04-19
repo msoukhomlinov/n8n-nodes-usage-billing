@@ -27,8 +27,6 @@ export async function defineHierarchy(
     const hierarchyName = this.getNodeParameter('hierarchyName', 0) as string;
     const hierarchyDescription = this.getNodeParameter('hierarchyDescription', 0, '') as string;
 
-    // Try different approaches to get the hierarchy structure
-
     // Log the entire hierarchy structure for debugging
     this.logger.info('DEBUG: Full hierarchyLevels parameter:');
     const fullHierarchy = this.getNodeParameter('hierarchyLevels', 0, {});
@@ -136,7 +134,7 @@ export async function defineHierarchy(
       outputField: level.outputField || level.identifierField, // Default to input field name if output not specified
     }));
 
-    // Create the shared hierarchy config object
+    // Create the hierarchy config object - standard format for shared config
     const hierarchyConfig: SharedHierarchyConfig = {
       name: hierarchyName,
       description: hierarchyDescription || undefined,
@@ -146,25 +144,23 @@ export async function defineHierarchy(
     // Log the final hierarchy config for debugging
     this.logger.info(`DEBUG: Final hierarchy config: ${JSON.stringify(hierarchyConfig)}`);
 
-    // Create the return data
+    // Create the return data with multiple structure formats for compatibility
     const returnData: INodeExecutionData[] = items.map((item) => {
       const newItem = { ...item };
 
-      // Store hierarchy configuration in expected formats
+      // Store the configuration in a single standardized format
       newItem.json = {
         ...newItem.json,
-        // Store directly with the field name 'hierarchyConfig'
+        // Store as hierarchyConfig using the standard format
         hierarchyConfig,
-        // Also store with the custom name for reference
-        [hierarchyName]: hierarchyConfig,
-        // Additional metadata fields
-        hierarchyName,
-        hierarchyConfigName: hierarchyName,
       };
 
       return newItem;
     });
 
+    this.logger.info(
+      `DEBUG: Output uses standard hierarchyConfig format with name, description, and levels array`,
+    );
     this.logger.info(`DEBUG: First output item: ${JSON.stringify(returnData[0].json)}`);
 
     return returnData;

@@ -132,14 +132,22 @@ The goal is to help you maintain a big picture as well as the progress of the ta
    - Add detailed logging of the extraction process for troubleshooting
    - Implement defensive coding with thorough type checking and validation
    - Handle parameter values that might be objects instead of simple values
-   - Store configurations in multiple formats to ensure compatibility with different components
+   - Store configurations in standardized formats for compatibility across components
    - Provide clear error messages that identify the exact nature of the configuration issue
+
+9. Data Structure Simplification: Keep data structures as simple as possible while maintaining functionality. Avoid redundant or duplicate representations of the same data, even for backward compatibility, unless absolutely necessary. When designing shared data structures:
+   - Choose a single canonical representation
+   - Document the structure clearly
+   - Use consistent field naming
+   - Avoid nested structures when flat structures would work
+   - Prioritize readability and simplicity over flexibility
+   - Use strong typing to enforce structure consistency
 
 # Scratchpad
 
-## Calculate Billing Hierarchical Structure Fix
+## Fixing Hierarchy Configuration Issues
 
-Task: Fix the "Calculate billing fails" issue with hierarchy configuration not being found.
+Task: Fix issues with hierarchy configuration not being found in different operations.
 
 ### Progress:
 
@@ -147,24 +155,36 @@ Task: Fix the "Calculate billing fails" issue with hierarchy configuration not b
 [X] Added debugging to see the actual hierarchyConfigFieldName value
 [X] Improved the field lookup logic in BillingProcessor.ts to handle both string and object parameter values
 [X] Added a helper function extractHierarchyLevels() to robustly extract hierarchy information from various data structures
-[X] Updated the defineHierarchy function to store the configuration in multiple formats for compatibility
-[X] Added extensive logging to trace the hierarchy structure extraction process
-[X] Simplified the calculateBilling function to use the helper function
+[X] Updated the calculateBilling function to use the helper function
 [X] Fixed the issue where hierarchyConfigFieldName contained the actual hierarchy configuration object
 [X] Enhanced extractHierarchyLevels() to handle direct HierarchyLevel objects in the levels array
 [X] Added more detailed logging for each extracted hierarchy level
+[X] Simplified the hierarchy configuration output format to avoid redundancy
+[X] Prioritized standard hierarchyConfig format in the extraction logic
+[X] Cleaned up redundant checks in extractHierarchyLevels and calculateBilling functions
+[X] Updated lessons learned in .cursorrules to include data structure simplification principles
+[X] Fixed loadPriceList operation to handle the simplified hierarchyConfig format
+[X] Improved error messages to be more helpful when configuration is not found
+[X] Added validation to ensure identifierField is never empty
+[X] Added better logging in the extraction process to aid troubleshooting
+[X] Fixed parameter handling priority when object contains both 'name' and 'levels' properties
+[X] Added proper validation for levels with missing identifierField values
+[X] Discovered that n8n can pass entire hierarchy configuration objects as parameters
 
 ### Key improvements:
 
 1. **Robust parameter handling**: The code now handles hierarchyConfigFieldName properly whether it's a string or object
 2. **Better structure extraction**: The new extractHierarchyLevels function can handle various hierarchy data formats
 3. **Enhanced debugging**: Added detailed logging at critical points to make troubleshooting easier
-4. **Consistent storage**: Hierarchy configurations are now stored in standardized formats
+4. **Consistent storage**: Hierarchy configurations are now stored in a single standardized format
 5. **Improved error messages**: Error messages are now more specific about the nature of configuration problems
 6. **Direct configuration handling**: Now properly handles cases where hierarchyConfigFieldName contains the actual hierarchy configuration rather than just a field reference
+7. **Simplified data structure**: Removed redundant and duplicate data structures for better maintainability
+8. **Cross-operation compatibility**: Made sure both calculateBilling and loadPriceList operations work with the same hierarchy configuration format
 
 ### Architecture considerations:
 
-- Consider standardizing the hierarchical configuration format across all operations
-- Add validation utilities for hierarchical data structures
-- Implement user-friendly error handling for configuration issues
+- Standardized the hierarchical configuration format across all operations
+- Added robust extraction utilities for hierarchical data structures
+- Implemented user-friendly error handling for configuration issues
+- Applied principles of simplicity and consistency to shared data structures

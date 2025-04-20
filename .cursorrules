@@ -140,5 +140,48 @@ The goal is to help you maintain a big picture as well as the progress of the ta
 5. Maintain operational memory through scratchpad
 
 # Lessons
+- When working with n8n nodes, be prepared to handle stringified data or incorrect data types
+- Objects in arrays can be incorrectly converted to "[object Object]" strings when passed between nodes
+- Always add data type validation and conversion for input data in n8n nodes
+- Use try/catch blocks when parsing JSON to handle potential errors gracefully
+- When expecting arrays, check for single objects and wrap them in arrays if needed
+- In n8n nodes that perform lookups/calculations, always include all matched fields and calculation components in the output by default
+- Use prefixes (like "usage_" and "price_") to prevent field name collisions in output data
+- When debugging n8n nodes, add detailed logging throughout the execution flow to trace data transformations and field matching
+- Implement case insensitive matching for string fields to make lookups more resilient to formatting differences
+- Handle both string paths and direct data objects from n8n expressions - when users use expressions like {{ $json }}, n8n evaluates them to the actual data, not a path string
+- Implement case-insensitive field name lookups for matching operations to handle inconsistent capitalization between data sources
+- When outputting data from lookup operations, include only relevant fields (match fields, calculation fields) instead of all fields to keep output clean
+- When enhancing n8n nodes with new configuration options, all related files need to be updated: nodeDescription.ts, interface definitions, node implementation, and processing logic
+- For n8n nodes, it's important to maintain backward compatibility by making new interface properties optional and providing default values
+- When changing field names or keys used in output, consider existing users who might expect the old names/keys
+- When adding prefix configuration to output field names, remember to update all occurrences where fields are added to the output
+- When implementing match logic, ensure you properly handle cases with multiple matches by returning arrays instead of single items
+- Keep console logging minimal and focused in production code - verbose logging makes debugging harder and can impact performance
+- When handling n8n expressions, consider all possible data formats that might be passed (arrays, objects, strings, etc.)
+- When implementing debugging logs, strike a balance between verbosity and clarity - include identifying information to track individual items being processed
+- When handling parameters that accept n8n expressions, implement detection for "direct data mode" vs. "field path mode" to ensure proper processing of each item
+- Prefer simple, standardized approaches over special-case handling - make the most common use case the default behavior
+- Avoid hardcoding field names in the code - use dynamic approaches to detect field types and handle data structures flexibly
 
 # Scratchpad
+
+## Current Task: Standardize on Direct Data Mode in BillingCalculator
+[X] Remove special "direct data mode" detection logic
+[X] Make processing each item directly the default behavior
+[X] Simplify usage data extraction to only handle string field paths
+[X] Rename extractUsageData to extractDataFromFieldPath for clarity
+[X] Clean up and streamline console logging
+[X] Keep compatibility with both direct data and field path approaches
+
+## Task Summary
+Standardized the BillingCalculator node to use direct data mode as the default approach:
+
+1. Removed the special "direct data mode" detection logic
+2. Made processing each item directly the default behavior instead of a special case
+3. Added explicit handling for string field paths (only when a non-empty string path is provided)
+4. Simplified the extractUsageData function and renamed it to extractDataFromFieldPath
+5. Streamlined the code by removing special cases and complicated conditional logic
+6. Maintained compatibility with both approaches: direct item usage and field path extraction
+
+This refactoring simplifies the node's implementation while making the most common use case (direct item processing) the default behavior, resulting in cleaner, more maintainable code.

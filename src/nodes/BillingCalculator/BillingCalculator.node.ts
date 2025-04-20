@@ -43,8 +43,8 @@ export class BillingCalculator implements INodeType {
         returnData = importResult;
       } else if (operation === 'pricelistLookup') {
         // Get configuration for Pricelist Lookup operation
-        const priceListFieldName = this.getNodeParameter('priceListFieldName', 0) as string;
-        const usageDataFieldName = this.getNodeParameter('usageDataFieldName', 0) as string;
+        const priceListFieldName = this.getNodeParameter('priceListFieldName', 0) as unknown;
+        const usageDataFieldName = this.getNodeParameter('usageDataFieldName', 0) as unknown;
 
         // Get match fields
         const matchFieldsParam = this.getNodeParameter('matchFields', 0) as IDataObject;
@@ -61,20 +61,42 @@ export class BillingCalculator implements INodeType {
         }
 
         // Get calculation configuration
-        const calculationConfigParam = this.getNodeParameter(
-          'calculationConfig',
-          0,
-          {},
-        ) as IDataObject;
+        const calculationConfigParam = this.getNodeParameter('calculationConfig', 0, {
+          roundingDirection: 'none',
+        }) as IDataObject;
         const calculationConfig: CalculationConfig = {
           quantityField: (calculationConfigParam.quantityField as string) || 'quantity',
           priceField: (calculationConfigParam.priceField as string) || 'price',
+          roundingDirection:
+            (calculationConfigParam.roundingDirection as 'up' | 'down' | 'none') || 'none',
         };
+
+        // Get automatic field inclusion settings
+        const outputFieldsConfigParam = this.getNodeParameter('outputFieldsConfig', 0, {
+          includeMatchPricelistFields: true,
+          includeMatchUsageFields: true,
+          includeCalculationFields: true,
+          pricelistFieldPrefix: 'price_',
+          usageFieldPrefix: 'usage_',
+          calculationFieldPrefix: 'calc_',
+          calculatedAmountField: 'calc_amount',
+        }) as IDataObject;
 
         // Get output configuration
         const outputConfigParam = this.getNodeParameter('outputConfig', 0, {}) as IDataObject;
         const outputConfig: OutputFieldConfig = {
           includeFields: [],
+          // Add the automatic inclusion settings
+          includeMatchPricelistFields:
+            outputFieldsConfigParam.includeMatchPricelistFields as boolean,
+          includeMatchUsageFields: outputFieldsConfigParam.includeMatchUsageFields as boolean,
+          includeCalculationFields: outputFieldsConfigParam.includeCalculationFields as boolean,
+          // Add field prefix settings
+          pricelistFieldPrefix: outputFieldsConfigParam.pricelistFieldPrefix as string,
+          usageFieldPrefix: outputFieldsConfigParam.usageFieldPrefix as string,
+          calculationFieldPrefix: outputFieldsConfigParam.calculationFieldPrefix as string,
+          // Add calculated amount field name
+          calculatedAmountField: outputFieldsConfigParam.calculatedAmountField as string,
         };
 
         // Extract output fields from the parameter

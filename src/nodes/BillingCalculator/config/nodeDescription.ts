@@ -239,7 +239,12 @@ export const nodeDescription: INodeTypeDescription = {
       name: 'calculationConfig',
       type: 'collection',
       placeholder: 'Add Setting',
-      default: {},
+      default: {
+        quantityField: '',
+        priceField: '',
+        roundingDirection: 'none',
+        decimalPlaces: 1,
+      },
       displayOptions: {
         show: {
           operation: ['pricelistLookup'],
@@ -250,7 +255,8 @@ export const nodeDescription: INodeTypeDescription = {
           displayName: 'Quantity Field',
           name: 'quantityField',
           type: 'string',
-          default: 'quantity',
+          placeholder: 'quantity',
+          default: '',
           description: 'Field in the usage data containing the quantity value',
           required: false,
         },
@@ -258,14 +264,146 @@ export const nodeDescription: INodeTypeDescription = {
           displayName: 'Price Field',
           name: 'priceField',
           type: 'string',
-          default: 'price',
+          placeholder: 'price',
+          default: '',
           description: 'Field in the price list data containing the price value',
           required: false,
+        },
+        {
+          displayName: 'Rounding',
+          name: 'roundingDirection',
+          type: 'options',
+          options: [
+            {
+              name: 'None',
+              value: 'none',
+              description: 'No rounding applied',
+            },
+            {
+              name: 'Round Up',
+              value: 'up',
+              description: 'Round up to the nearest decimal place',
+            },
+            {
+              name: 'Round Down',
+              value: 'down',
+              description: 'Round down to the nearest decimal place',
+            },
+          ],
+          default: 'none',
+          description: 'How to round the calculated amount',
+        },
+        {
+          displayName: 'Decimal Places',
+          name: 'decimalPlaces',
+          type: 'options',
+          displayOptions: {
+            show: {
+              roundingDirection: ['up', 'down'],
+            },
+          },
+          options: [
+            {
+              name: '0 (Whole Numbers)',
+              value: 0,
+              description: 'Round to whole numbers',
+            },
+            {
+              name: '1 (Tenths)',
+              value: 1,
+              description: 'Round to one decimal place (tenths)',
+            },
+            {
+              name: '2 (Hundredths)',
+              value: 2,
+              description: 'Round to two decimal places (hundredths)',
+            },
+            {
+              name: '3 (Thousandths)',
+              value: 3,
+              description: 'Round to three decimal places (thousandths)',
+            },
+          ],
+          default: 1,
+          description: 'Number of decimal places to round to',
         },
       ],
     },
 
     // Output Configuration
+    {
+      displayName: 'Output Field Configuration',
+      name: 'outputFieldsConfig',
+      type: 'collection',
+      placeholder: 'Add Field Configuration',
+      default: {
+        includeMatchPricelistFields: true,
+        includeMatchUsageFields: true,
+        includeCalculationFields: true,
+        pricelistFieldPrefix: 'price_',
+        usageFieldPrefix: 'usage_',
+        calculationFieldPrefix: 'calc_',
+        calculatedAmountField: 'calc_amount',
+      },
+      displayOptions: {
+        show: {
+          operation: ['pricelistLookup'],
+        },
+      },
+      options: [
+        {
+          displayName: 'Include Match Pricelist Fields',
+          name: 'includeMatchPricelistFields',
+          type: 'boolean',
+          default: true,
+          description: 'Whether to automatically include all pricelist fields used for matching',
+        },
+        {
+          displayName: 'Include Match Usage Fields',
+          name: 'includeMatchUsageFields',
+          type: 'boolean',
+          default: true,
+          description: 'Whether to automatically include all usage fields used for matching',
+        },
+        {
+          displayName: 'Include Calculation Fields',
+          name: 'includeCalculationFields',
+          type: 'boolean',
+          default: true,
+          description:
+            'Whether to automatically include quantity and price fields used in calculations',
+        },
+        {
+          displayName: 'Pricelist Field Prefix',
+          name: 'pricelistFieldPrefix',
+          type: 'string',
+          default: 'price_',
+          description: 'Prefix to add to pricelist field names in output',
+        },
+        {
+          displayName: 'Usage Field Prefix',
+          name: 'usageFieldPrefix',
+          type: 'string',
+          default: 'usage_',
+          description: 'Prefix to add to usage field names in output',
+        },
+        {
+          displayName: 'Calculation Field Prefix',
+          name: 'calculationFieldPrefix',
+          type: 'string',
+          default: 'calc_',
+          description: 'Prefix to add to calculation field names in output',
+        },
+        {
+          displayName: 'Calculated Amount Field Name',
+          name: 'calculatedAmountField',
+          type: 'string',
+          default: 'calc_amount',
+          description: 'Name of the field for the calculated amount in the output',
+        },
+      ],
+      description: 'Configure automatic field inclusion and naming in the output records',
+    },
     {
       displayName: 'Output Fields',
       name: 'outputConfig',
@@ -321,7 +459,8 @@ export const nodeDescription: INodeTypeDescription = {
           ],
         },
       ],
-      description: 'Fields to include in the output records',
+      description:
+        'Additional fields to include in the output records. Note: All matched fields, quantity field, price field, and calculated total are automatically included.',
     },
   ],
 };

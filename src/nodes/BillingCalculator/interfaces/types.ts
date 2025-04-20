@@ -69,6 +69,8 @@ export interface MatchFieldPair {
 export interface CalculationConfig {
   quantityField: string;
   priceField: string;
+  roundingDirection?: 'up' | 'down' | 'none';
+  decimalPlaces?: number;
 }
 
 /**
@@ -80,6 +82,16 @@ export interface OutputFieldConfig {
     targetField: string;
     source: 'pricelist' | 'usage';
   }>;
+  // New fields for automatic inclusion
+  includeMatchPricelistFields?: boolean;
+  includeMatchUsageFields?: boolean;
+  includeCalculationFields?: boolean;
+  // Field prefix settings
+  pricelistFieldPrefix?: string;
+  usageFieldPrefix?: string;
+  calculationFieldPrefix?: string;
+  // Calculated amount field name
+  calculatedAmountField?: string;
 }
 
 /**

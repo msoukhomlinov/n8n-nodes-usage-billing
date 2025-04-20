@@ -1,4 +1,3 @@
-import { NodeOperationError } from 'n8n-workflow';
 import type { IExecuteFunctions, INodeExecutionData, IDataObject } from 'n8n-workflow';
 import type {
   PriceListItem,
@@ -8,7 +7,7 @@ import type {
   CalculationConfig,
   OutputFieldConfig,
 } from '../interfaces';
-import { multiply, round } from '../utils/calculations';
+import { multiply } from '../utils/calculations';
 import {
   handleError,
   validatePriceListStructure,
@@ -18,16 +17,21 @@ import {
   ErrorCode,
   ErrorCategory,
   createStandardizedError,
-  StandardizedError,
 } from '../utils/errorHandling';
 import {
   getPropertyCaseInsensitive,
-  extractAndNormalizeData,
   addMatchFieldsToOutput,
   addExtraFieldsToOutput,
 } from '../utils/common';
 import Decimal from 'decimal.js';
 import _ from 'lodash';
+
+// Define extended UsageRecord type with match properties
+type ExtendedUsageRecord = UsageRecord & {
+  matchReason?: string;
+  matchCount?: number;
+  matchedFields?: string[];
+};
 
 /**
  * Process usage records against a price list, performing exact matching and calculation
@@ -43,12 +47,11 @@ export async function pricelistLookup(
 ): Promise<INodeExecutionData[][]> {
   // Arrays to hold all matched and unmatched records
   const allMatchedRecords: CalculatedRecord[] = [];
-  const allUnmatchedRecords: UsageRecord[] = [];
+  const allUnmatchedRecords: ExtendedUsageRecord[] = [];
   // Array to hold error records for the second output
   const errorRecords: INodeExecutionData[] = [];
-  // Arrays to track no-match and multiple-match records for detailed error reporting
-  const noMatchRecords: UsageRecord[] = [];
-  const multipleMatchRecords: UsageRecord[] = [];
+  // Arrays to track no-match records for detailed error reporting
+  const noMatchRecords: ExtendedUsageRecord[] = [];
 
   try {
     // Basic input validation
@@ -65,6 +68,7 @@ export async function pricelistLookup(
         },
       );
       errorRecords.push({ json: { error } });
+      // Return empty valid records first, then invalid records
       return [[], errorRecords];
     }
 
@@ -72,6 +76,7 @@ export async function pricelistLookup(
     const matchFieldsValidation = validateMatchFields(matchFields);
     if (!matchFieldsValidation.valid && matchFieldsValidation.error) {
       errorRecords.push({ json: { error: matchFieldsValidation.error } });
+      // Return empty valid records first, then invalid records
       return [[], errorRecords];
     }
 
@@ -90,6 +95,7 @@ export async function pricelistLookup(
         },
       );
       errorRecords.push({ json: { error } });
+      // Return empty valid records first, then invalid records
       return [[], errorRecords];
     }
 
@@ -107,6 +113,7 @@ export async function pricelistLookup(
         },
       );
       errorRecords.push({ json: { error } });
+      // Return empty valid records first, then invalid records
       return [[], errorRecords];
     }
 
@@ -117,6 +124,7 @@ export async function pricelistLookup(
     const priceListValidation = validatePriceListStructure(priceList);
     if (!priceListValidation.valid && priceListValidation.error) {
       errorRecords.push({ json: { error: priceListValidation.error } });
+      // Return empty valid records first, then invalid records
       return [[], errorRecords];
     }
 
@@ -150,7 +158,7 @@ export async function pricelistLookup(
 
       // Process each usage record for this item against the shared price list
       const matchedRecords: CalculatedRecord[] = [];
-      const unmatchedRecords: UsageRecord[] = [];
+      const unmatchedRecords: ExtendedUsageRecord[] = [];
 
       for (const usageRecord of usageData) {
         // Find matching price records
@@ -168,12 +176,54 @@ export async function pricelistLookup(
           );
           matchedRecords.push(calculated);
         } else {
-          // Add match reason and count to usage record
-          const unmatchedRecord = { ...usageRecord };
-          unmatchedRecord.matchReason = 'No matching price records found';
-          unmatchedRecord.matchCount = 0;
+          // Create a copy of the usage record with detailed match info
+          const unmatchedRecord: ExtendedUsageRecord = { ...usageRecord };
 
-          // Add to tracking collections after setting all properties
+          // Determine if any fields matched or if there were multiple matches
+          let allFieldsMatched = true;
+          const matchingFields: string[] = [];
+
+          // Check each match field
+          for (const matchField of matchFields) {
+            const priceValue = getPropertyCaseInsensitive(priceList, matchField.priceListField);
+            const usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
+
+            // Track which fields matched
+            if (priceValue !== undefined && usageValue !== undefined) {
+              let fieldMatched = false;
+
+              // Compare values based on type
+              if (typeof priceValue === 'string' && typeof usageValue === 'string') {
+                fieldMatched = priceValue.toLowerCase() === usageValue.toLowerCase();
+              } else {
+                fieldMatched = priceValue === usageValue;
+              }
+
+              if (fieldMatched) {
+                matchingFields.push(matchField.usageField);
+              } else {
+                allFieldsMatched = false;
+              }
+            } else {
+              allFieldsMatched = false;
+            }
+          }
+
+          // Set match reason based on the outcome
+          if (matchingFields.length === 0) {
+            unmatchedRecord.matchReason = 'No matching fields found';
+            unmatchedRecord.matchCount = 0;
+          } else if (!allFieldsMatched) {
+            unmatchedRecord.matchReason = 'Partial match - some fields did not match';
+            unmatchedRecord.matchCount = matchingFields.length;
+            unmatchedRecord.matchedFields = matchingFields;
+          } else {
+            // This shouldn't happen but is here for completeness
+            unmatchedRecord.matchReason = 'Unknown matching issue';
+            unmatchedRecord.matchCount = matchingFields.length;
+          }
+
+          // Add to tracking collections
           noMatchRecords.push(unmatchedRecord);
           unmatchedRecords.push(unmatchedRecord);
         }
@@ -193,7 +243,7 @@ export async function pricelistLookup(
       });
     }
 
-    // Prepare output data
+    // Prepare output data - valid matched records for the first output
     const successOutput = allMatchedRecords.map((record) => ({ json: record }));
 
     // Merge unmatched records with error records for the second output
@@ -202,8 +252,8 @@ export async function pricelistLookup(
       ...errorRecords,
     ];
 
-    // Return both outputs - swapping the order to fix the output routing
-    return [unmatchedOutput, successOutput];
+    // Return outputs in the correct order: [validRecords, invalidRecords]
+    return [successOutput, unmatchedOutput];
   } catch (error) {
     // Use handleError to create a standardized error
     const standardizedError = handleError(error as Error, {
@@ -219,8 +269,8 @@ export async function pricelistLookup(
       },
     });
 
-    // Return empty successful records and error records - also swap order to match the fix above
-    return [errorRecords, []];
+    // Return in the correct order: [validRecords (empty), invalidRecords]
+    return [[], errorRecords];
   }
 }
 
@@ -282,7 +332,9 @@ function extractDataFromFieldPath(inputData: IDataObject, fieldPath: string): Us
 }
 
 /**
- * Find matching price record for a usage record
+ * Find matching price records for a usage record against a price list
+ * Returns the matching price record if exactly one match is found
+ * Returns null if no match or multiple matches are found
  */
 function findMatchingPriceRecords(
   usageRecord: UsageRecord,
@@ -331,9 +383,11 @@ function calculateAmount(
   // Create the output record
   const outputRecord: CalculatedRecord = {};
 
-  // Get quantity and price values
-  const quantity = Number(usageRecord[calculationConfig.quantityField] || 0);
-  const price = Number(priceRecord[calculationConfig.priceField] || 0);
+  // Get quantity and price values using case-insensitive property lookup
+  const quantity = Number(
+    getPropertyCaseInsensitive(usageRecord, calculationConfig.quantityField) || 0,
+  );
+  const price = Number(getPropertyCaseInsensitive(priceRecord, calculationConfig.priceField) || 0);
 
   // Calculate amount
   let amount = multiply(quantity, price);

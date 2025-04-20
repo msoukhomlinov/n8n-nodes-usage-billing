@@ -144,7 +144,5 @@ The goal is to help you maintain a big picture as well as the progress of the ta
 # Scratchpad
 
 # Todo
-1. Ensure we have error handling for matchUsageAndCalculate operation to check that
-  a. pricelist contains only a single item and is an object
-  b. Usage Data contains one or more items in an object
-  c. At least one match field with price list and usage fields populated is added by default (as required, with place holders but no default value)
+1. Fix: "Output Field Configuration" is controlling invalid output instead of valid output of Match Usage and Calculate. This could be because of use of common processinf functions. Valid records output should be controlled by Output Field Configuration and Output Fields, whilst invalid output should output the full details of usage item plus error message and match count.
+2. Modify findMatchingPriceRecords to match as many items from the usage against the price list items and if there's more than one match against the pricelist, that should be considered invalid.

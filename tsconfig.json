@@ -5,7 +5,7 @@
     "target": "es2019",
     "outDir": "./dist",
     "rootDir": "./src",
-    "types": ["node", "jest"],
+    "types": ["node"],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

@@ -171,10 +171,10 @@ export async function pricelistLookup(
           // Add match reason and count to usage record
           const unmatchedRecord = { ...usageRecord };
           unmatchedRecord.matchReason = 'No matching price records found';
-          noMatchRecords.push(unmatchedRecord);
           unmatchedRecord.matchCount = 0;
 
-          // Add to unmatched records
+          // Add to tracking collections after setting all properties
+          noMatchRecords.push(unmatchedRecord);
           unmatchedRecords.push(unmatchedRecord);
         }
       }

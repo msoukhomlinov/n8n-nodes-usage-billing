@@ -26,8 +26,6 @@ export async function importPriceList(
   try {
     // Input parameters logging
     this.logger.info('Starting CSV import process');
-    this.logger.info(`CSV parsing config: ${JSON.stringify(csvParsingConfig)}`);
-    this.logger.info(`Column filter config: ${JSON.stringify(columnFilterConfig)}`);
 
     // 1. Extract CSV data from input
     const csvData = extractCsvData(items, csvParsingConfig.csvSource.fieldName, this);

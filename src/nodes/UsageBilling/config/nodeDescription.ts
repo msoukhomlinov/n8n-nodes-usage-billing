@@ -4,7 +4,7 @@ import { NodeConnectionType } from 'n8n-workflow';
 export const nodeDescription: INodeTypeDescription = {
   displayName: 'Usage Billing',
   name: 'usageBilling',
-  icon: 'file:usagebilling.svg',
+  icon: 'file:usageBilling.svg',
   group: ['transform'],
   codex: {
     categories: ['Finance'],
@@ -49,8 +49,7 @@ export const nodeDescription: INodeTypeDescription = {
         {
           name: 'Match Usage and Calculate',
           value: 'matchUsageAndCalculate',
-          description:
-            'Match usage data object against price list object and calculate billing. Requires at least one match field.',
+          description: 'Match usage data object against price list object and calculate billing.',
           action: 'Match usage data against price list and calculate billing',
         },
       ],
@@ -241,7 +240,7 @@ export const nodeDescription: INodeTypeDescription = {
         },
       ],
       description:
-        'Fields to match between price list and usage data (at least one match field is required)',
+        'Define field pairs that uniquely identify matching records between price list and usage data (at least one pair required to ensure a single, unique match)',
     },
 
     // Calculation Configuration

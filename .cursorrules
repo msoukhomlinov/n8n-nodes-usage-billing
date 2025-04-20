@@ -23,7 +23,6 @@ Especially when you finished a milestone, it will help to improve your depth of 
 The goal is to help you maintain a big picture as well as the progress of the task. Always refer to the Scratchpad when you plan the next step.
 
 # Documentation Files
-
 # MCP Server Tools Usage
 
 ## Strategic Tool Selection
@@ -50,6 +49,20 @@ The goal is to help you maintain a big picture as well as the progress of the ta
   - Create entities for major components and concepts.
   - Map dependencies and document architectural decisions.
   - Regularly clean up obsolete entities and update relationships.
+
+- **Memory (@itseasy21\mcp-knowledge-graph):**
+  - Start with "Remembering..." and read what you stored in memory before working on a task
+  - Reference knowledge as "memory"
+  - When the assigned task is done:
+    1. Create/update entities
+    2. Define relationships
+    3. Store observations
+
+- **Firecrawl MCP:**
+  - Use for advanced web crawling and data extraction tasks.
+  - Efficiently navigate complex websites and extract structured data.
+  - Handle pagination, authentication, and dynamic content loading.
+  - Process and transform extracted data for integration with other systems.
 
 ### Sequential Thinking
 - Use for operations requiring multiple steps
@@ -90,6 +103,27 @@ The goal is to help you maintain a big picture as well as the progress of the ta
   * Clear large objects after operations
   * Monitor memory usage in long sessions
 
+### Memory Management
+- Start with "Remembering..." and read what you stored in memory before working on a task
+- Reference knowledge as "memory"
+- When the assigned task is done:
+  1. Create/update entities
+  2. Define relationships
+  3. Store observations
+
+### Firecrawl Operations
+- Use for comprehensive web data extraction
+- Strategic patterns:
+  * Define clear extraction targets and selectors
+  * Handle site navigation and state management
+  * Process and transform extracted data
+  * Implement error recovery and retry mechanisms
+- Best practices:
+  * Respect website terms of service and robots.txt
+  * Implement rate limiting to avoid overloading servers
+  * Store extracted data efficiently
+  * Validate data integrity after extraction
+
 ## Operational Guidelines
 
 ### For Moderate Changes (30-100 lines):
@@ -105,86 +139,6 @@ The goal is to help you maintain a big picture as well as the progress of the ta
 4. Regular validation checkpoints
 5. Maintain operational memory through scratchpad
 
-
 # Lessons
 
-1. Financial Calculation Precision: Use specialized libraries like Decimal.js for financial calculations instead of native JavaScript arithmetic to prevent floating-point precision errors. Implement dedicated utility functions (multiply, add, subtract, divide, round) that encapsulate this precision handling for consistent results across the application.
-
-2. Hierarchical Data Matching: When matching records across hierarchical data structures, implement a recursive traversal approach with clear level-by-level processing. Support both exact matches and configurable partial/fuzzy matching with fallback strategies for when records don't match exactly.
-
-3. Data Validation Strategy: Implement multi-stage validation that separates structural validation from business logic validation. Continue processing with warnings rather than hard failures where appropriate, allowing workflows to make decisions about how to handle validation issues.
-
-4. Diagnostic Logging: For complex data processing implementations, embed detailed logging at key decision points with clear contextual information. Log data structure, field mappings, and processing decisions to simplify troubleshooting. Use log levels appropriately to separate routine information from warnings and errors.
-
-5. Modular Billing Calculation: Structure billing processors with clear functional separation using dedicated methods: `calculateBilling` as the main orchestrator, `findHierarchicalMatch` for locating price entries, `applyFieldMappings` for field transformation, and `processBillingRecord` for individual record handling. This modular approach simplifies maintenance and enables backward compatibility.
-
-6. Reusable Data Structures: Implement shared data structures like hierarchical configurations as separate operations that can be referenced across multiple processing steps. This promotes consistency, reduces duplication, and simplifies maintenance. When implementing shared structures:
-   - Create dedicated types and interfaces for the shared structure
-   - Implement type checking and validation when accessing shared data
-   - Use proper type casting (with intermediate unknown step when necessary)
-   - Maintain backward compatibility with existing operations
-   - Pass the shared structure along with relevant outputs to ensure data continuity
-
-7. Function Naming and Duplication: When multiple functions serve similar purposes but with different implementations, use descriptive names that clearly indicate their specific usage context (e.g., `findHierarchicalMatchInFlatList` instead of a generic `findHierarchicalMatch`). This prevents name collisions and makes the purpose of each function clearer.
-
-8. Hierarchical Configuration Handling: When working with hierarchical configuration structures that might be produced by different sources or systems, implement robust extraction and validation logic:
-   - Create helper functions that can extract hierarchical data regardless of its format or nesting level
-   - Add detailed logging of the extraction process for troubleshooting
-   - Implement defensive coding with thorough type checking and validation
-   - Handle parameter values that might be objects instead of simple values
-   - Store configurations in standardized formats for compatibility across components
-   - Provide clear error messages that identify the exact nature of the configuration issue
-
-9. Data Structure Simplification: Keep data structures as simple as possible while maintaining functionality. Avoid redundant or duplicate representations of the same data, even for backward compatibility, unless absolutely necessary. When designing shared data structures:
-   - Choose a single canonical representation
-   - Document the structure clearly
-   - Use consistent field naming
-   - Avoid nested structures when flat structures would work
-   - Prioritize readability and simplicity over flexibility
-   - Use strong typing to enforce structure consistency
-
 # Scratchpad
-
-## Fixing Hierarchy Configuration Issues
-
-Task: Fix issues with hierarchy configuration not being found in different operations.
-
-### Progress:
-
-[X] Identified the issue in the BillingProcessor.ts: hierarchyConfigFieldName was being treated as an object instead of a string
-[X] Added debugging to see the actual hierarchyConfigFieldName value
-[X] Improved the field lookup logic in BillingProcessor.ts to handle both string and object parameter values
-[X] Added a helper function extractHierarchyLevels() to robustly extract hierarchy information from various data structures
-[X] Updated the calculateBilling function to use the helper function
-[X] Fixed the issue where hierarchyConfigFieldName contained the actual hierarchy configuration object
-[X] Enhanced extractHierarchyLevels() to handle direct HierarchyLevel objects in the levels array
-[X] Added more detailed logging for each extracted hierarchy level
-[X] Simplified the hierarchy configuration output format to avoid redundancy
-[X] Prioritized standard hierarchyConfig format in the extraction logic
-[X] Cleaned up redundant checks in extractHierarchyLevels and calculateBilling functions
-[X] Updated lessons learned in .cursorrules to include data structure simplification principles
-[X] Fixed loadPriceList operation to handle the simplified hierarchyConfig format
-[X] Improved error messages to be more helpful when configuration is not found
-[X] Added validation to ensure identifierField is never empty
-[X] Added better logging in the extraction process to aid troubleshooting
-[X] Fixed parameter handling priority when object contains both 'name' and 'levels' properties
-[X] Added proper validation for levels with missing identifierField values
-[X] Discovered that n8n can pass entire hierarchy configuration objects as parameters
-
-### Key improvements:
-
-1. **Robust parameter handling**: The code now handles hierarchyConfigFieldName properly whether it's a string or object
-2. **Better structure extraction**: The new extractHierarchyLevels function can handle various hierarchy data formats
-3. **Enhanced debugging**: Added detailed logging at critical points to make troubleshooting easier
-4. **Consistent storage**: Hierarchy configurations are now stored in a single standardized format
-5. **Improved error messages**: Error messages are now more specific about the nature of configuration problems
-6. **Direct configuration handling**: Now properly handles cases where hierarchyConfigFieldName contains the actual hierarchy configuration rather than just a field reference
-7. **Simplified data structure**: Removed redundant and duplicate data structures for better maintainability
-8. **Cross-operation compatibility**: Made sure both calculateBilling and loadPriceList operations work with the same hierarchy configuration format
-
-### Architecture considerations:
-
-- Standardized the hierarchical configuration format across all operations
-- Added robust extraction utilities for hierarchical data structures
-- Implemented user-friendly error handling for configuration issues
-- Applied principles of simplicity and consistency to shared data structures

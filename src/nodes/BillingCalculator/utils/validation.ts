@@ -13,12 +13,21 @@ const ajv = new Ajv({
 export const priceListItemSchema = {
   type: 'object',
   properties: {
-    // Common properties - these are just examples and should be customized
+    // Common properties for price list items
+    price: { type: 'number', minimum: 0 },
+    unitPrice: { type: 'number', minimum: 0 },
+    amount: { type: 'number', minimum: 0 },
+    currency: { type: 'string' },
+    description: { type: 'string' },
     productId: { type: 'string' },
+    productCode: { type: 'string' },
     productName: { type: 'string' },
     category: { type: 'string' },
-    unitPrice: { type: 'number', minimum: 0 },
-    currency: { type: 'string' },
+    subcategory: { type: 'string' },
+    region: { type: 'string' },
+    tier: { type: 'string' },
+    effectiveDate: { type: 'string' },
+    expirationDate: { type: 'string' },
   },
   // We don't require specific properties as column mapping is customizable
   additionalProperties: true,

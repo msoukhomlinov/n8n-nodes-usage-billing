@@ -24,7 +24,16 @@ export const nodeDescription: INodeTypeDescription = {
     color: '#785AA2',
   },
   inputs: [NodeConnectionType.Main],
-  outputs: [NodeConnectionType.Main],
+  outputs: [
+    {
+      type: NodeConnectionType.Main,
+      displayName: 'Valid Records',
+    },
+    {
+      type: NodeConnectionType.Main,
+      displayName: 'Invalid/Unmatched Records',
+    },
+  ],
   properties: [
     {
       displayName: 'Operation',
@@ -33,112 +42,22 @@ export const nodeDescription: INodeTypeDescription = {
       noDataExpression: true,
       options: [
         {
-          name: 'Define Hierarchy',
-          value: 'defineHierarchy',
-          description: 'Create a reusable hierarchy structure for both price list and usage data',
-          action: 'Create a reusable hierarchy structure',
-        },
-        {
-          name: 'Load Price List',
-          value: 'loadPriceList',
+          name: 'Import Price List',
+          value: 'importPriceList',
           description: 'Import and transform price list data from CSV to JSON format',
           action: 'Import and transform price list data',
         },
         {
-          name: 'Calculate Billing',
-          value: 'calculateBilling',
-          description: 'Process pricing and usage data to generate billing records',
-          action: 'Calculate billing based on usage and price data',
+          name: 'Pricelist Lookup',
+          value: 'pricelistLookup',
+          description: 'Match usage data against price list and calculate billing',
+          action: 'Match usage data against price list and calculate billing',
         },
       ],
-      default: 'defineHierarchy',
+      default: 'importPriceList',
     },
 
-    // Define Hierarchy Operation - Configuration
-    {
-      displayName: 'Hierarchy Name',
-      name: 'hierarchyName',
-      type: 'string',
-      default: '',
-      required: true,
-      displayOptions: {
-        show: {
-          operation: ['defineHierarchy'],
-        },
-      },
-      description: 'Name of the hierarchy structure to reference in other operations',
-    },
-    {
-      displayName: 'Description',
-      name: 'hierarchyDescription',
-      type: 'string',
-      default: '',
-      displayOptions: {
-        show: {
-          operation: ['defineHierarchy'],
-        },
-      },
-      description: 'Optional description of what this hierarchy represents',
-    },
-    {
-      displayName: 'Hierarchy Levels',
-      name: 'hierarchyLevels',
-      type: 'fixedCollection',
-      default: {},
-      displayOptions: {
-        show: {
-          operation: ['defineHierarchy'],
-        },
-      },
-      options: [
-        {
-          name: 'level',
-          displayName: 'Hierarchy Levels (Ordered by Priority)',
-          values: [
-            {
-              displayName: 'Hierarchy Levels',
-              name: 'level',
-              placeholder: 'Add Hierarchy Level',
-              type: 'fixedCollection',
-              typeOptions: {
-                multipleValues: true,
-              },
-              default: {},
-              description:
-                'Fields to group by, in hierarchical order (first level at the top, more specific levels below)',
-              options: [
-                {
-                  name: 'level',
-                  displayName: 'Level',
-                  values: [
-                    {
-                      displayName: 'Identifier Field',
-                      name: 'identifierField',
-                      type: 'string',
-                      default: '',
-                      description:
-                        'Field name to use for this hierarchy level (e.g., ProductName, Category, etc.)',
-                      required: true,
-                    },
-                    {
-                      displayName: 'Output Field Name (Optional)',
-                      name: 'outputField',
-                      type: 'string',
-                      default: '',
-                      description:
-                        'Rename this field in the output (leave empty to keep the original field name)',
-                      required: false,
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-
-    // Load Price List Operation - CSV Parsing Configuration
+    // Import Price List Operation - CSV Parsing Configuration
     {
       displayName: 'CSV Parsing Configuration',
       name: 'csvParsingConfig',
@@ -146,7 +65,7 @@ export const nodeDescription: INodeTypeDescription = {
       default: {},
       displayOptions: {
         show: {
-          operation: ['loadPriceList'],
+          operation: ['importPriceList'],
         },
       },
       options: [
@@ -162,19 +81,41 @@ export const nodeDescription: INodeTypeDescription = {
               placeholder: 'csvdata',
               description:
                 'The name of the field containing CSV data (e.g., csvdata, data, or rawCsv)',
-            },
-            {
-              displayName: 'Skip First Row',
-              name: 'skipFirstRow',
-              type: 'boolean',
-              default: true,
-              description: 'Whether to skip the first row (header row)',
+              required: true,
             },
             {
               displayName: 'Delimiter',
               name: 'delimiter',
-              type: 'string',
-              default: ',',
+              type: 'options',
+              options: [
+                {
+                  name: 'Auto-detect',
+                  value: 'auto',
+                  description:
+                    'Automatically detect the delimiter (works best with standard formats)',
+                },
+                {
+                  name: 'Comma (,)',
+                  value: ',',
+                  description: 'Standard CSV delimiter',
+                },
+                {
+                  name: 'Semicolon (;)',
+                  value: ';',
+                  description: 'Common in European locales',
+                },
+                {
+                  name: 'Tab',
+                  value: 'tab',
+                  description: 'Tab-separated values (TSV)',
+                },
+                {
+                  name: 'Pipe (|)',
+                  value: '|',
+                  description: 'Pipe-separated values',
+                },
+              ],
+              default: 'auto',
               description: 'The character used to separate values in the CSV',
             },
           ],
@@ -182,130 +123,55 @@ export const nodeDescription: INodeTypeDescription = {
       ],
     },
 
-    // Hierarchy Config Field Name for Load Price List
+    // Column Filtering Configuration for Import Price List
     {
-      displayName: 'Hierarchy Config Field Name',
-      name: 'hierarchyConfigFieldName',
-      type: 'string',
-      default: 'hierarchyConfig',
+      displayName: 'Column Filtering Options',
+      name: 'columnFilterConfig',
+      type: 'collection',
+      placeholder: 'Add Field',
+      default: {
+        includeAllColumns: true,
+      },
       displayOptions: {
         show: {
-          operation: ['loadPriceList'],
+          operation: ['importPriceList'],
         },
       },
-      description:
-        'The name of the field containing the hierarchy configuration from Define Hierarchy',
-      required: true,
-    },
-
-    // Load Price List Operation - Column Filter (renamed from Column Mapping)
-    {
-      displayName: 'Column Filter',
-      name: 'columnMappingConfig',
-      type: 'fixedCollection',
-      default: {},
-      displayOptions: {
-        show: {
-          operation: ['loadPriceList'],
-        },
-      },
-      description:
-        'Configure which additional fields to include and their data types (hierarchy fields are always included)',
       options: [
         {
-          name: 'includeOptions',
-          displayName: 'Column Inclusion Options',
-          values: [
-            {
-              displayName: 'Include All Columns',
-              name: 'includeAllColumns',
-              type: 'boolean',
-              default: true,
-              description:
-                'Whether to include all columns at each level once hierarchy has been applied',
-            },
-            {
-              displayName: 'Columns to Include',
-              name: 'includeColumnsList',
-              type: 'string',
-              default: '',
-              displayOptions: {
-                show: {
-                  includeAllColumns: [false],
-                },
-              },
-              placeholder: 'column1,column2,column3',
-              description:
-                'Comma-separated list of column names to include (if empty, only hierarchy fields will be included)',
-            },
-          ],
+          displayName: 'Include All Columns',
+          name: 'includeAllColumns',
+          type: 'boolean',
+          default: true,
+          description: 'Whether to include all columns from the CSV data in the output',
         },
         {
-          name: 'mappings',
-          displayName: 'Include Additional Fields',
-          values: [
-            {
-              displayName: 'Additional Fields',
-              name: 'columns',
-              placeholder: 'Add Field',
-              type: 'fixedCollection',
-              typeOptions: {
-                multipleValues: true,
-              },
-              default: {},
-              description: 'Fields to include in addition to hierarchy fields',
-              options: [
-                {
-                  name: 'column',
-                  displayName: 'Field',
-                  values: [
-                    {
-                      displayName: 'CSV Column',
-                      name: 'csvColumn',
-                      type: 'string',
-                      default: '',
-                      description: 'CSV column to include',
-                    },
-                    {
-                      displayName: 'Target Field',
-                      name: 'targetField',
-                      type: 'string',
-                      default: '',
-                      description:
-                        'Field name in the resulting JSON (same as CSV column if left empty)',
-                    },
-                    {
-                      displayName: 'Data Type',
-                      name: 'dataType',
-                      type: 'options',
-                      options: [
-                        { name: 'String', value: 'string' },
-                        { name: 'Number', value: 'number' },
-                        { name: 'Boolean', value: 'boolean' },
-                      ],
-                      default: 'string',
-                      description: 'How to convert the field value',
-                    },
-                  ],
-                },
-              ],
+          displayName: 'Columns to Include',
+          name: 'includeColumnsList',
+          type: 'string',
+          default: '',
+          description:
+            'Comma-separated list of column names to include (only used if Include All Columns is false)',
+          displayOptions: {
+            show: {
+              includeAllColumns: [false],
             },
-          ],
+          },
         },
       ],
     },
 
-    // Input Data Section - For Calculate Billing Operation
+    // Pricelist Lookup Configuration
     {
       displayName: 'Price List Field Name',
       name: 'priceListFieldName',
       type: 'string',
       default: 'priceList',
-      description: 'The name of the field containing price list data',
+      description: 'Name of the field containing the price list data',
       required: true,
       displayOptions: {
         show: {
-          operation: ['calculateBilling'],
+          operation: ['pricelistLookup'],
         },
       },
     },
@@ -314,245 +180,148 @@ export const nodeDescription: INodeTypeDescription = {
       name: 'usageDataFieldName',
       type: 'string',
       default: 'usageData',
-      description: 'The name of the field containing usage data',
+      description: 'Name of the field containing the usage data',
       required: true,
       displayOptions: {
         show: {
-          operation: ['calculateBilling'],
+          operation: ['pricelistLookup'],
         },
       },
     },
 
-    // Hierarchy Config Field Name for Calculate Billing
+    // Match Fields Configuration
     {
-      displayName: 'Hierarchy Config Field Name',
-      name: 'hierarchyConfigFieldName',
-      type: 'string',
-      default: 'hierarchyConfig',
-      displayOptions: {
-        show: {
-          operation: ['calculateBilling'],
-        },
-      },
-      description:
-        'The name of the field containing the hierarchy configuration from Define Hierarchy',
-      required: true,
-    },
-
-    // Match Configuration Section - For Calculate Billing Operation
-    {
-      displayName: 'Match Configuration',
-      name: 'matchConfig',
+      displayName: 'Match Fields',
+      name: 'matchFields',
       type: 'fixedCollection',
+      typeOptions: {
+        multipleValues: true,
+      },
+      placeholder: 'Add Match Field Pair',
       default: {},
       displayOptions: {
         show: {
-          operation: ['calculateBilling'],
+          operation: ['pricelistLookup'],
         },
       },
       options: [
         {
-          name: 'hierarchyLevels',
-          displayName: 'Hierarchy Matching Levels',
+          name: 'field',
+          displayName: 'Field Mapping',
           values: [
             {
-              displayName: 'Hierarchy Levels',
-              name: 'level',
-              placeholder: 'Add Hierarchy Level',
-              type: 'fixedCollection',
-              typeOptions: {
-                multipleValues: true,
-              },
-              default: {},
-              description: 'Fields to match at each hierarchy level (top to bottom)',
-              options: [
-                {
-                  name: 'level',
-                  displayName: 'Level',
-                  values: [
-                    {
-                      displayName: 'Price List Field',
-                      name: 'priceListField',
-                      type: 'string',
-                      default: '',
-                      description: 'The key in the price list hierarchy at this level',
-                      required: true,
-                    },
-                    {
-                      displayName: 'Usage Field',
-                      name: 'usageField',
-                      type: 'string',
-                      default: '',
-                      description: 'Field in usage data containing value to match at this level',
-                      required: true,
-                    },
-                  ],
-                },
-              ],
+              displayName: 'Price List Field',
+              name: 'priceListField',
+              type: 'string',
+              default: '',
+              placeholder: 'product_id',
+              description: 'Field name in the price list data to match on',
+              required: true,
             },
-          ],
-        },
-        {
-          name: 'partialMatchBehavior',
-          displayName: 'Partial Match Behavior',
-          values: [
             {
-              displayName: 'Partial Match Behavior',
-              name: 'behavior',
-              type: 'options',
-              options: [
-                { name: 'Best Match (Match As Far As Possible)', value: 'bestMatch' },
-                { name: 'No Match (Require Full Path Match)', value: 'noMatch' },
-              ],
-              default: 'noMatch',
-              description: 'What to do when only some levels in the hierarchy match',
-            },
-          ],
-        },
-        {
-          name: 'noMatchBehavior',
-          displayName: 'No Match Behavior',
-          values: [
-            {
-              displayName: 'No Match Behavior',
-              name: 'behavior',
-              type: 'options',
-              options: [
-                { name: 'Skip Record', value: 'skip' },
-                { name: 'Error', value: 'error' },
-              ],
-              default: 'skip',
-              description: 'What to do when no matching price is found for a usage record',
-            },
-          ],
-        },
-        {
-          name: 'fieldMappings',
-          displayName: 'Field Mappings',
-          values: [
-            {
-              displayName: 'Field Mappings',
-              name: 'mappings',
-              placeholder: 'Add Field Mapping',
-              type: 'fixedCollection',
-              typeOptions: {
-                multipleValues: true,
-              },
-              default: {},
-              description: 'Map fields from usage data to output fields',
-              options: [
-                {
-                  name: 'mapping',
-                  displayName: 'Mapping',
-                  values: [
-                    {
-                      displayName: 'Source Field',
-                      name: 'sourceField',
-                      type: 'string',
-                      default: '',
-                      description: 'Field in usage data to map',
-                      required: true,
-                    },
-                    {
-                      displayName: 'Target Field',
-                      name: 'targetField',
-                      type: 'string',
-                      default: '',
-                      description:
-                        'Name of field in output (leave empty to keep source field name)',
-                      required: false,
-                    },
-                  ],
-                },
-              ],
+              displayName: 'Usage Field',
+              name: 'usageField',
+              type: 'string',
+              default: '',
+              placeholder: 'product_id',
+              description: 'Field name in the usage data to match on',
+              required: true,
             },
           ],
         },
       ],
+      description: 'Fields to match between price list and usage data',
     },
 
-    // Calculation Configuration - For Calculate Billing Operation
+    // Calculation Configuration
     {
-      displayName: 'Calculation Configuration',
+      displayName: 'Calculation Settings',
       name: 'calculationConfig',
-      type: 'fixedCollection',
+      type: 'collection',
+      placeholder: 'Add Setting',
       default: {},
       displayOptions: {
         show: {
-          operation: ['calculateBilling'],
+          operation: ['pricelistLookup'],
         },
       },
       options: [
         {
-          name: 'calculationMethod',
-          displayName: 'Calculation Method',
-          values: [
-            {
-              displayName: 'Method',
-              name: 'method',
-              type: 'options',
-              options: [
-                { name: 'Basic (quantity * price)', value: 'basic' },
-                { name: 'Simple Tiered', value: 'tiered' },
-              ],
-              default: 'basic',
-              description: 'Method to calculate billing amount',
-            },
-            {
-              displayName: 'Quantity Field',
-              name: 'quantityField',
-              type: 'string',
-              default: 'usage',
-              description: 'Field containing quantity/usage amount',
-            },
-            {
-              displayName: 'Price Field',
-              name: 'priceField',
-              type: 'string',
-              default: 'unitPrice',
-              description: 'Field containing unit price',
-            },
-          ],
+          displayName: 'Quantity Field',
+          name: 'quantityField',
+          type: 'string',
+          default: 'quantity',
+          description: 'Field in the usage data containing the quantity value',
+          required: false,
+        },
+        {
+          displayName: 'Price Field',
+          name: 'priceField',
+          type: 'string',
+          default: 'price',
+          description: 'Field in the price list data containing the price value',
+          required: false,
         },
       ],
     },
 
-    // Output Field Configuration - For Calculate Billing Operation
+    // Output Configuration
     {
-      displayName: 'Output Configuration',
+      displayName: 'Output Fields',
       name: 'outputConfig',
       type: 'fixedCollection',
+      typeOptions: {
+        multipleValues: true,
+      },
+      placeholder: 'Add Output Field',
       default: {},
       displayOptions: {
         show: {
-          operation: ['calculateBilling'],
+          operation: ['pricelistLookup'],
         },
       },
       options: [
         {
-          name: 'outputFields',
-          displayName: 'Output Fields',
+          name: 'includeFields',
+          displayName: 'Field to Include',
           values: [
             {
-              displayName: 'Fields',
-              name: 'fields',
-              type: 'string',
-              typeOptions: {
-                multipleValues: true,
-              },
-              default: ['productId', 'usage', 'unitPrice', 'totalCost', 'customerId'],
-              description: 'Fields to include in output',
+              displayName: 'Source',
+              name: 'source',
+              type: 'options',
+              options: [
+                {
+                  name: 'Price List',
+                  value: 'pricelist',
+                },
+                {
+                  name: 'Usage Data',
+                  value: 'usage',
+                },
+              ],
+              default: 'pricelist',
+              description: 'Where to get the field from',
             },
             {
-              displayName: 'Total Field',
-              name: 'totalField',
+              displayName: 'Source Field',
+              name: 'sourceField',
               type: 'string',
-              default: 'totalCost',
-              description: 'Field to store calculation result',
+              default: '',
+              description: 'Name of the field in the source data',
+              required: true,
+            },
+            {
+              displayName: 'Target Field',
+              name: 'targetField',
+              type: 'string',
+              default: '',
+              description:
+                'Name to use for this field in the output data (leave empty to use source name)',
             },
           ],
         },
       ],
+      description: 'Fields to include in the output records',
     },
   ],
 };

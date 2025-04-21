@@ -32,7 +32,16 @@ logs/
 coverage/
 .nyc_output/
 
-package-lock.json
+# Editor specific files
+.cursorrules
+.cursorignore
+.cursorconfig
+.cursorcache
+.cursor-settings.json
 
-# .vscode/
-# .docs/
+# Lock files - keep pnpm-lock.yaml for consistency
+package-lock.json
+# pnpm-lock.yaml removed to allow committing
+
+# Sample files - keep for documentation
+# sample-pricelist.csv removed to allow committing

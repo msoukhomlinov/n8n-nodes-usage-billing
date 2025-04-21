@@ -3,6 +3,8 @@
  * Simplified with flat data structures (no hierarchy)
  */
 
+import type { IDataObject } from 'n8n-workflow';
+
 /**
  * Base interface for pricelist items
  */
@@ -25,7 +27,30 @@ export interface UsageRecord {
  */
 export interface CalculatedRecord {
   calculated_amount?: number;
+  // Customer-specific pricing fields
+  isCustomPricing?: boolean;
+  customerIdField?: string;
+  customerId?: string | number;
   [key: string]: string | number | boolean | null | undefined;
+}
+
+/**
+ * Usage summary record for tracking total consumption and costs
+ */
+export interface UsageSummaryRecord {
+  recordsProcessed: number;
+  summaryDate: string;
+  sourceData?: IDataObject[];
+  [key: string]: string | number | boolean | null | undefined | IDataObject[];
+}
+
+/**
+ * Configuration for usage summary
+ */
+export interface UsageSummaryConfig {
+  fieldsToTotal: string;
+  groupByFields?: string[];
+  includeSourceData?: boolean;
 }
 
 /**
@@ -64,13 +89,15 @@ export interface MatchFieldPair {
 }
 
 /**
- * Configuration for calculation
+ * Configuration for price calculation
  */
 export interface CalculationConfig {
   quantityField: string;
-  priceField: string;
+  costPriceField: string;
+  sellPriceField: string;
   roundingDirection?: 'up' | 'down' | 'none';
   decimalPlaces?: number;
+  customerPricingConfig?: CustomerPricingConfig;
 }
 
 /**
@@ -90,11 +117,21 @@ export interface OutputFieldConfig {
   pricelistFieldPrefix?: string;
   usageFieldPrefix?: string;
   calculationFieldPrefix?: string;
-  // Calculated amount field name
-  calculatedAmountField?: string;
+  // Calculated amount field names
+  calculatedCostAmountField?: string;
+  calculatedSellAmountField?: string;
 }
 
 /**
  * The operations supported by the node
  */
-export type OperationType = 'importPricingData' | 'matchUsageAndCalculate';
+export type OperationType = 'importPricingData' | 'matchUsageAndCalculate' | 'usageSummary';
+
+/**
+ * Configuration for customer-specific pricing
+ */
+export interface CustomerPricingConfig {
+  useCustomerSpecificPricing: boolean;
+  customerIdPriceListField: string;
+  customerIdUsageField: string;
+}

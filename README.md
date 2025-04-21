@@ -1,71 +1,101 @@
-# n8n-nodes-billing-calculator
+# n8n-nodes-usage-billing
 
-This is a node for [n8n](https://n8n.io/) that provides billing calculation functionality. It takes usage data and price lists as inputs, performs matching and calculation, and outputs formatted billing records.
+![n8n-nodes-usage-billing](https://img.shields.io/badge/n8n--nodes--usage--billing-latest-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support-yellow.svg)](https://buymeacoffee.com/msoukhomlinov)
+
+> **IMPORTANT**: When updating between versions, make sure to restart your n8n instance after the update. UI changes and new features are only picked up after a restart.
+
+This n8n community node provides usage-based billing calculation functionality. It takes usage data and price lists as inputs, performs matching and calculation, and outputs formatted billing records.
+
+[Installation](#installation)
+[Features](#features)
+[Operations](#operations)
+[Configuration Options](#configuration-options)
+[Contributing](#contributing)
+[Support](#support)
+[License](#license)
 
 ## Features
 
-- **Schema generation**: Create schemas from JSON examples
-- **Flexible matching**: Match usage data to price list items
-- **Validation**: Validate configuration before processing
-- **Two operations**:
-  - **Process Billing**: Generate billing records from price lists and usage data
-  - **Validate Configuration**: Test configuration without processing actual billing
+- **CSV Price List Import**: Convert CSV price lists to structured JSON data
+- **Flexible Usage Matching**: Match usage data to price list items using multiple fields
+- **Customer-Specific Pricing**: Support for customer-specific pricing rules
+- **Calculation Options**: Configure rounding and decimal precision
+- **Output Customization**: Control which fields appear in the output
+- **Usage Summarization**: Generate summaries by grouping and totaling fields
 
-## Installation
+## Operations
 
-Follow these steps to install this custom node:
+The node provides three main operations:
 
-```bash
-# Navigate to your n8n installation folder
-cd /path/to/n8n
+### Import Pricing Data
 
-# Install the node
-npm install n8n-nodes-billing-calculator
+Convert CSV pricing data to structured JSON:
 
-# Restart n8n
-```
+1. Provide CSV data in an input field
+2. Configure CSV parsing settings (delimiter, field mappings)
+3. Get structured price list as JSON output
 
-## Usage
+### Match Usage and Calculate
 
-The node has two main operations:
+Match usage data with pricing records and calculate costs:
 
-### 1. Process Billing
+1. Provide price list and usage data in specified fields
+2. Configure match fields (productId, region, etc.)
+3. Configure calculation options (quantity field, price fields, rounding)
+4. Configure customer-specific pricing (if needed)
+5. Configure output field options
+6. Get calculated billing records as output, with unmatched records in a separate output
 
-The primary operation for generating billing records:
+### Usage Summary
 
-1. Provide price list and usage data examples
-2. Configure matching fields between price list and usage data
-3. Supply actual price list and usage data in the workflow
-4. Get calculated billing records as output
+Generate summaries of usage and costs:
 
-### 2. Validate Configuration
+1. Provide calculated billing records as input
+2. Specify fields to total (cost, price, etc.)
+3. Specify fields to group by (date, customer, product, etc.)
+4. Get summarized totals as output
 
-Test your schema definition and matching rules:
+## Configuration Options
 
-1. Provide price list and usage data examples
-2. Configure matching fields between price list and usage data
-3. Run validation to check for potential issues
-4. View validation report without processing actual billing
+### Import Pricing Data Configuration
 
-## Configuration
+- **CSV Parsing Configuration**: Field name containing CSV, delimiter options
+- **Column Filtering Options**: Include all columns or specify columns to include
 
-### Schema Definition
+### Match Usage and Calculate Configuration
 
-Define your data schemas by providing JSON examples:
+- **Price List Field**: Field containing price list data
+- **Usage Data Field**: Field containing usage data
+- **Match Fields**: Field pairs to match between price list and usage data
+- **Calculation Configuration**: Fields and options for calculation
+- **Customer-Specific Pricing**: Options for customer-specific price entries
+- **Output Fields Configuration**: Control which fields to include in output
 
-- **Price List Item Example**: A sample price list item with fields like productId, unitPrice, etc.
-- **Usage Data Example**: A sample usage record with fields like productId, usage, etc.
-- **Desired Output Example**: How you want the output billing record to look
+### Usage Summary Configuration
 
-### Match Configuration
+- **Fields to Total**: Comma-separated list of fields to sum
+- **Group By Fields**: Fields to group by when generating summaries
+- **Include Source Data**: Option to include source records in summary
 
-Configure how price list items are matched to usage records:
+## Contributing
 
-- **Price List Field**: Field in price list to match on (e.g., productId)
-- **Usage Data Field**: Field in usage data to match on (e.g., productId)
-- **Allow Multiple Matches**: Whether to allow multiple matching price items
-- **When No Match Found**: Behavior when no match is found (Error, Skip, Process with Empty Price)
+Contributions are welcome! If you'd like to contribute to this project:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## Support
+
+If you find this node helpful and would like to support its development:
+
+[![Buy Me A Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/msoukhomlinov)
 
 ## License
 
-MIT
+[MIT](LICENSE)

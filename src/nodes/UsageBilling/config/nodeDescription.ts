@@ -52,6 +52,12 @@ export const nodeDescription: INodeTypeDescription = {
           description: 'Match usage data object against price list object and calculate billing.',
           action: 'Match usage data against price list and calculate billing',
         },
+        {
+          name: 'Usage Summary',
+          value: 'usageSummary',
+          description: 'Generate a summary of total costs from matched records',
+          action: 'Generate a summary of costs from matched records',
+        },
       ],
       default: 'importPricingData',
     },
@@ -243,6 +249,61 @@ export const nodeDescription: INodeTypeDescription = {
         'Define field pairs that uniquely identify matching records between price list and usage data (at least one pair required to ensure a single, unique match)',
     },
 
+    // Customer-Specific Pricing Configuration
+    {
+      displayName: 'Customer-Specific Pricing',
+      name: 'customerPricingConfig',
+      type: 'collection',
+      placeholder: 'Add Customer Pricing Setting',
+      default: {
+        useCustomerSpecificPricing: false,
+      },
+      description:
+        'Configure this section when your price list contains duplicate items where some entries are for specific customers and others are for all customers (requiring customer ID matching).',
+      displayOptions: {
+        show: {
+          operation: ['matchUsageAndCalculate'],
+        },
+      },
+      options: [
+        {
+          displayName: 'Pricelist Contains Customer-Specific Pricing',
+          name: 'useCustomerSpecificPricing',
+          type: 'boolean',
+          default: false,
+          description:
+            'Turn on when your price list contains duplicate product entries where some are specific to individual customers and others apply to all customers',
+        },
+        {
+          displayName: 'Customer ID Field in Price List',
+          name: 'customerIdPriceListField',
+          type: 'string',
+          default: 'customerId',
+          placeholder: 'customerId',
+          description: 'The field name in your price list that contains the customer identifier',
+          displayOptions: {
+            show: {
+              useCustomerSpecificPricing: [true],
+            },
+          },
+        },
+        {
+          displayName: 'Customer ID Field in Usage Data',
+          name: 'customerIdUsageField',
+          type: 'string',
+          default: 'customerId',
+          placeholder: 'customerId',
+          description:
+            'The field name in your usage data that contains the customer identifier to match against the price list',
+          displayOptions: {
+            show: {
+              useCustomerSpecificPricing: [true],
+            },
+          },
+        },
+      ],
+    },
+
     // Calculation Configuration
     {
       displayName: 'Calculation Settings',
@@ -251,7 +312,8 @@ export const nodeDescription: INodeTypeDescription = {
       placeholder: 'Add Setting',
       default: {
         quantityField: '',
-        priceField: '',
+        costPriceField: '',
+        sellPriceField: '',
         roundingDirection: 'none',
         decimalPlaces: 1,
       },
@@ -271,12 +333,21 @@ export const nodeDescription: INodeTypeDescription = {
           required: false,
         },
         {
-          displayName: 'Price Field',
-          name: 'priceField',
+          displayName: 'Cost Price Field',
+          name: 'costPriceField',
+          type: 'string',
+          placeholder: 'cost',
+          default: '',
+          description: 'Field in the price list data containing the cost price value',
+          required: false,
+        },
+        {
+          displayName: 'Sell Price Field',
+          name: 'sellPriceField',
           type: 'string',
           placeholder: 'price',
           default: '',
-          description: 'Field in the price list data containing the price value',
+          description: 'Field in the price list data containing the sell price value',
           required: false,
         },
         {
@@ -301,7 +372,8 @@ export const nodeDescription: INodeTypeDescription = {
             },
           ],
           default: 'none',
-          description: 'How to round the calculated amount',
+          description:
+            'How to round the calculated amounts (applies to both cost and sell calculations)',
         },
         {
           displayName: 'Decimal Places',
@@ -353,7 +425,8 @@ export const nodeDescription: INodeTypeDescription = {
         pricelistFieldPrefix: 'price_',
         usageFieldPrefix: 'usage_',
         calculationFieldPrefix: 'calc_',
-        calculatedAmountField: 'calc_amount',
+        calculatedCostAmountField: 'calc_cost_amount',
+        calculatedSellAmountField: 'calc_sell_amount',
       },
       displayOptions: {
         show: {
@@ -405,11 +478,18 @@ export const nodeDescription: INodeTypeDescription = {
           description: 'Prefix to add to calculation field names in output',
         },
         {
-          displayName: 'Calculated Amount Field Name',
-          name: 'calculatedAmountField',
+          displayName: 'Calculated Cost Amount Field Name',
+          name: 'calculatedCostAmountField',
           type: 'string',
-          default: 'calc_amount',
-          description: 'Name of the field for the calculated amount in the output',
+          default: 'calc_cost_amount',
+          description: 'Name of the field for the calculated cost amount in the output',
+        },
+        {
+          displayName: 'Calculated Sell Amount Field Name',
+          name: 'calculatedSellAmountField',
+          type: 'string',
+          default: 'calc_sell_amount',
+          description: 'Name of the field for the calculated sell amount in the output',
         },
       ],
       description: 'Configure automatic field inclusion and naming in the output records',
@@ -470,7 +550,50 @@ export const nodeDescription: INodeTypeDescription = {
         },
       ],
       description:
-        'Additional fields to include in the output records. Note: All matched fields, quantity field, price field, and calculated total are automatically included.',
+        'Additional fields to include in the output records. Note: All matched fields, quantity field, cost and sell price fields, and calculated totals are automatically included.',
+    },
+
+    // Usage Summary Configuration options
+    {
+      displayName: 'Fields to Total',
+      name: 'fieldsToTotal',
+      type: 'string',
+      placeholder: 'calc_cost_amount,calc_sell_amount,quantity',
+      default: '',
+      description:
+        'Comma-separated list of field names to total. For each field, a "total_[field name]" will be included in the summary output.',
+      required: true,
+      displayOptions: {
+        show: {
+          operation: ['usageSummary'],
+        },
+      },
+    },
+    {
+      displayName: 'Group By Fields',
+      name: 'groupByFields',
+      type: 'string',
+      placeholder: 'field1,field2',
+      default: '',
+      description:
+        'Optional comma-separated list of fields to group summary by (e.g., product_id,region)',
+      displayOptions: {
+        show: {
+          operation: ['usageSummary'],
+        },
+      },
+    },
+    {
+      displayName: 'Include Source Data',
+      name: 'includeSourceData',
+      type: 'boolean',
+      default: false,
+      description: 'Whether to include the original source data records in the summary output',
+      displayOptions: {
+        show: {
+          operation: ['usageSummary'],
+        },
+      },
     },
   ],
 };

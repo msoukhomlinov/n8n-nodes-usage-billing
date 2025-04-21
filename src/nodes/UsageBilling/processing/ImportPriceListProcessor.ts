@@ -9,6 +9,7 @@ import {
 } from '../utils/csvProcessing';
 import { handleError, createValidationError } from '../utils/errorHandling';
 import { validatePriceListData } from '../utils/validation';
+import { logger } from '../utils/LoggerHelper';
 import _ from 'lodash';
 
 /**
@@ -25,11 +26,11 @@ export async function importPriceList(
 
   try {
     // Input parameters logging
-    this.logger.info('Starting CSV import process');
+    logger.info('CSV Import: Starting CSV import process');
 
     // 1. Extract CSV data from input
     const csvData = extractCsvData(items, csvParsingConfig.csvSource.fieldName, this);
-    this.logger.info(`CSV data extracted, length: ${csvData.length}`);
+    logger.info(`CSV Import: Data extracted, length: ${csvData.length}`);
 
     // 2. Setup parser options
     const parserOptions = {
@@ -41,7 +42,7 @@ export async function importPriceList(
     const transformers = createColumnTransformers([]);
 
     // 4. Parse CSV into JSON array
-    this.logger.info('Parsing CSV into JSON array');
+    logger.info('CSV Import: Parsing CSV into JSON array');
     const jsonArray = await parseAndTransformCsv(
       csvData,
       parserOptions.delimiter,
@@ -49,10 +50,10 @@ export async function importPriceList(
       transformers,
       this,
     );
-    this.logger.info(`JSON array created, items: ${jsonArray.length}`);
+    logger.info(`CSV Import: JSON array created, items: ${jsonArray.length}`);
 
     // 5. Apply column filtering using the more comprehensive applyColumnMappings function
-    this.logger.info('Applying column filtering');
+    logger.info('CSV Import: Applying column filtering');
 
     // Convert comma-separated list to array if needed
     const includeColumnsList = columnFilterConfig.includeColumnsList
@@ -72,17 +73,19 @@ export async function importPriceList(
       includeColumnsList,
     );
 
-    this.logger.info(`Column filtering applied, items: ${processedArray.length}`);
+    logger.info(`CSV Import: Column filtering applied, items: ${processedArray.length}`);
 
     // 6. Validate the processed array and create output items
-    this.logger.info('Validating records');
+    logger.info('CSV Import: Validating records');
 
     // Use schema validation first for basic checks
     const schemaValidation = validatePriceListData(processedArray);
 
     if (!schemaValidation.valid) {
       // Schema validation failed
-      this.logger.info(`Schema validation failed with ${schemaValidation.errors.length} issues`);
+      logger.info(
+        `CSV Import: Schema validation failed with ${schemaValidation.errors.length} issues`,
+      );
 
       invalidRecords.push({
         json: {
@@ -125,8 +128,8 @@ export async function importPriceList(
       }
     }
 
-    this.logger.info(
-      `Item validation complete - Valid: ${validItems.length}, Invalid: ${invalidItems.length}`,
+    logger.info(
+      `CSV Import: Item validation complete - Valid: ${validItems.length}, Invalid: ${invalidItems.length}`,
     );
 
     // 7. Create output for valid records
@@ -148,11 +151,14 @@ export async function importPriceList(
       });
     }
 
-    this.logger.info('CSV import process completed successfully');
+    logger.info('CSV Import: Process completed successfully');
     return [validRecords, invalidRecords];
   } catch (error) {
-    // Log the error using the existing logger
-    this.logger.error(`Error in importPriceList: ${(error as Error).message}`);
+    // Log the error using the custom logger
+    logger.error(
+      `CSV Import: Error in importPriceList: ${(error as Error).message}`,
+      error as Error,
+    );
 
     // Use our existing error handling utility to create a standardized error
     const standardizedError = handleError(error as Error, {

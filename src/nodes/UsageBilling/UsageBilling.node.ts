@@ -2,7 +2,7 @@ import type { IExecuteFunctions } from 'n8n-workflow';
 import type { INodeExecutionData, INodeType, IDataObject } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 import { nodeDescription } from './config';
-import { importPricingData, matchUsageAndCalculate } from './processing';
+import { importPricingData, matchUsageAndCalculate, usageSummary } from './processing';
 import type {
   CsvParsingConfig,
   ColumnFilterConfig,
@@ -10,6 +10,7 @@ import type {
   CalculationConfig,
   OutputFieldConfig,
   OperationType,
+  UsageSummaryConfig,
 } from './interfaces';
 
 export class UsageBilling implements INodeType {
@@ -70,18 +71,37 @@ export class UsageBilling implements INodeType {
           });
         }
 
-        // Get calculation configuration
+        // Get calculation configuration first
         const calculationConfigParam = this.getNodeParameter('calculationConfig', 0, {
           roundingDirection: 'none',
           quantityField: 'quantity',
-          priceField: 'price',
+          costPriceField: 'cost',
+          sellPriceField: 'price',
         }) as IDataObject;
+
         const calculationConfig: CalculationConfig = {
           quantityField: (calculationConfigParam.quantityField as string) || 'quantity',
-          priceField: (calculationConfigParam.priceField as string) || 'price',
+          costPriceField: (calculationConfigParam.costPriceField as string) || 'cost',
+          sellPriceField: (calculationConfigParam.sellPriceField as string) || 'price',
           roundingDirection:
             (calculationConfigParam.roundingDirection as 'up' | 'down' | 'none') || 'none',
         };
+
+        // Get customer pricing configuration (now a top-level parameter)
+        const customerPricingParam = this.getNodeParameter('customerPricingConfig', 0, {
+          useCustomerSpecificPricing: false,
+        }) as IDataObject;
+
+        // Build customer pricing config
+        if (customerPricingParam.useCustomerSpecificPricing === true) {
+          calculationConfig.customerPricingConfig = {
+            useCustomerSpecificPricing: true,
+            customerIdPriceListField:
+              (customerPricingParam.customerIdPriceListField as string) || 'customerId',
+            customerIdUsageField:
+              (customerPricingParam.customerIdUsageField as string) || 'customerId',
+          };
+        }
 
         // Get automatic field inclusion settings
         const outputFieldsConfigParam = this.getNodeParameter('outputFieldsConfig', 0, {
@@ -91,7 +111,8 @@ export class UsageBilling implements INodeType {
           pricelistFieldPrefix: 'price_',
           usageFieldPrefix: 'usage_',
           calculationFieldPrefix: 'calc_',
-          calculatedAmountField: 'calc_amount',
+          calculatedCostAmountField: 'calc_cost_amount',
+          calculatedSellAmountField: 'calc_sell_amount',
         }) as IDataObject;
 
         // Get output configuration
@@ -107,8 +128,9 @@ export class UsageBilling implements INodeType {
           pricelistFieldPrefix: outputFieldsConfigParam.pricelistFieldPrefix as string,
           usageFieldPrefix: outputFieldsConfigParam.usageFieldPrefix as string,
           calculationFieldPrefix: outputFieldsConfigParam.calculationFieldPrefix as string,
-          // Add calculated amount field name
-          calculatedAmountField: outputFieldsConfigParam.calculatedAmountField as string,
+          // Add calculated amount field names
+          calculatedCostAmountField: outputFieldsConfigParam.calculatedCostAmountField as string,
+          calculatedSellAmountField: outputFieldsConfigParam.calculatedSellAmountField as string,
         };
 
         // Extract output fields from the parameter
@@ -132,6 +154,30 @@ export class UsageBilling implements INodeType {
           calculationConfig,
           outputConfig,
         );
+      } else if (operation === 'usageSummary') {
+        // Get configuration for Usage Summary operation
+        const fieldsToTotal = this.getNodeParameter(
+          'fieldsToTotal',
+          0,
+          'calc_cost_amount,calc_sell_amount',
+        ) as string;
+        const groupByFieldsStr = this.getNodeParameter('groupByFields', 0, '') as string;
+        const includeSourceData = this.getNodeParameter('includeSourceData', 0, false) as boolean;
+
+        // Parse group by fields from comma-separated string
+        const groupByFields = groupByFieldsStr
+          ? groupByFieldsStr.split(',').map((f) => f.trim())
+          : [];
+
+        // Create usage summary config
+        const summaryConfig: UsageSummaryConfig = {
+          fieldsToTotal,
+          groupByFields,
+          includeSourceData,
+        };
+
+        // Generate usage summary
+        returnData = await usageSummary.call(this, items, summaryConfig);
       }
 
       return returnData;

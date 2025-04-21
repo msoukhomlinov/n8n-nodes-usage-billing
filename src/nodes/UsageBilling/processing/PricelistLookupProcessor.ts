@@ -6,6 +6,7 @@ import type {
   MatchFieldPair,
   CalculationConfig,
   OutputFieldConfig,
+  CustomerPricingConfig,
 } from '../interfaces';
 import type { StandardizedError } from '../utils/errorHandling';
 import { multiply } from '../utils/calculations';
@@ -24,6 +25,7 @@ import {
   addMatchFieldsToOutput,
   addExtraFieldsToOutput,
 } from '../utils/common';
+import { logger } from '../utils/LoggerHelper';
 import Decimal from 'decimal.js';
 import _ from 'lodash';
 
@@ -35,6 +37,10 @@ type ExtendedUsageRecord = {
   matchedFields?: string[];
   matchedPriceItems?: PriceListItem[];
   processingErrorDetails?: StandardizedError;
+  // Customer-specific pricing fields
+  isCustomerSpecificMatch?: boolean;
+  customerIdField?: string;
+  customerId?: unknown;
 };
 
 /**
@@ -60,8 +66,54 @@ export async function pricelistLookup(
   // const noMatchRecords: ExtendedUsageRecord[] = [];
 
   try {
+    logger.info('PriceList Lookup: Starting process');
+    logger.debug(
+      `PriceList Lookup: Received ${items.length} items, FieldNames - PriceList: ${String(priceListFieldName)}, UsageData: ${String(usageDataFieldName)}`,
+    );
+    logger.debug(`PriceList Lookup: Match fields configuration: ${JSON.stringify(matchFields)}`);
+
+    // Validate customer pricing config if enabled
+    if (calculationConfig.customerPricingConfig?.useCustomerSpecificPricing) {
+      logger.info('PriceList Lookup: Customer-specific pricing is enabled');
+
+      if (!calculationConfig.customerPricingConfig.customerIdPriceListField) {
+        logger.warn('PriceList Lookup: Missing customer ID field for price list');
+        const error = createStandardizedError(
+          ErrorCode.MISSING_REQUIRED_FIELD,
+          'Customer ID Field for Price List is required when Customer-Specific Pricing is enabled',
+          ErrorCategory.INPUT_ERROR,
+          {
+            suggestions: [
+              'Provide a valid field name for the customer ID in the price list',
+              'This field should exist in your price list data',
+            ],
+          },
+        );
+        errorRecords.push({ json: { error } });
+        return [[], errorRecords];
+      }
+
+      if (!calculationConfig.customerPricingConfig.customerIdUsageField) {
+        logger.warn('PriceList Lookup: Missing customer ID field for usage data');
+        const error = createStandardizedError(
+          ErrorCode.MISSING_REQUIRED_FIELD,
+          'Customer ID Field for Usage Data is required when Customer-Specific Pricing is enabled',
+          ErrorCategory.INPUT_ERROR,
+          {
+            suggestions: [
+              'Provide a valid field name for the customer ID in the usage data',
+              'This field should exist in your usage data',
+            ],
+          },
+        );
+        errorRecords.push({ json: { error } });
+        return [[], errorRecords];
+      }
+    }
+
     // Basic input validation
     if (items.length === 0 || !items[0]?.json) {
+      logger.warn('PriceList Lookup: No input data found');
       const error = createStandardizedError(
         ErrorCode.EMPTY_DATASET,
         'No input data found',
@@ -81,6 +133,9 @@ export async function pricelistLookup(
     // Validate match fields
     const matchFieldsValidation = validateMatchFields(matchFields);
     if (!matchFieldsValidation.valid && matchFieldsValidation.error) {
+      logger.warn(
+        `PriceList Lookup: Invalid match fields configuration - ${matchFieldsValidation.error.message}`,
+      );
       errorRecords.push({ json: { error: matchFieldsValidation.error } });
       // Return empty valid records first, then invalid records
       return [[], errorRecords];
@@ -88,6 +143,7 @@ export async function pricelistLookup(
 
     // Validate required calculation fields
     if (!calculationConfig.quantityField) {
+      logger.warn('PriceList Lookup: Missing required quantity field');
       const error = createStandardizedError(
         ErrorCode.MISSING_REQUIRED_FIELD,
         'Quantity Field is required for price lookup',
@@ -105,15 +161,37 @@ export async function pricelistLookup(
       return [[], errorRecords];
     }
 
-    if (!calculationConfig.priceField) {
+    // Validate cost price field
+    if (!calculationConfig.costPriceField) {
+      logger.warn('PriceList Lookup: Missing required cost price field');
       const error = createStandardizedError(
         ErrorCode.MISSING_REQUIRED_FIELD,
-        'Price Field is required for price lookup',
+        'Cost Price Field is required for price lookup',
         ErrorCategory.INPUT_ERROR,
         {
           context: { calculationConfig },
           suggestions: [
-            'Provide a valid field name for the price field in the calculation settings',
+            'Provide a valid field name for the cost price field in the calculation settings',
+            'This field should exist in your price list data',
+          ],
+        },
+      );
+      errorRecords.push({ json: { error } });
+      // Return empty valid records first, then invalid records
+      return [[], errorRecords];
+    }
+
+    // Validate sell price field
+    if (!calculationConfig.sellPriceField) {
+      logger.warn('PriceList Lookup: Missing required sell price field');
+      const error = createStandardizedError(
+        ErrorCode.MISSING_REQUIRED_FIELD,
+        'Sell Price Field is required for price lookup',
+        ErrorCategory.INPUT_ERROR,
+        {
+          context: { calculationConfig },
+          suggestions: [
+            'Provide a valid field name for the sell price field in the calculation settings',
             'This field should exist in your price list data',
           ],
         },
@@ -124,10 +202,12 @@ export async function pricelistLookup(
     }
 
     // Extract the shared price list once from the first item
+    logger.debug('PriceList Lookup: Extracting price list data');
     const priceList = extractPriceListData(items[0].json, priceListFieldName);
 
     // Validate price list structure
     if (!priceList || priceList.length === 0) {
+      logger.warn('PriceList Lookup: Price list data is empty or invalid');
       const error = createStandardizedError(
         ErrorCode.INVALID_PRICE_LIST_FORMAT,
         'Price list data is empty or invalid',
@@ -145,25 +225,36 @@ export async function pricelistLookup(
       return [[], errorRecords];
     }
 
+    logger.info(
+      `PriceList Lookup: Successfully extracted price list with ${priceList.length} items`,
+    );
+
     // Process each item individually
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       if (!item?.json) continue;
+
+      logger.debug(`PriceList Lookup: Processing item ${i + 1}/${items.length}`);
 
       // Default: Use the item directly as the usage record
       // Only extract from field path if explicitly provided a string path
       let usageData: UsageRecord[];
       if (typeof usageDataFieldName === 'string' && usageDataFieldName.trim().length > 0) {
         // Extract data from specific field path
+        logger.debug(
+          `PriceList Lookup: Extracting usage data from field path: ${usageDataFieldName}`,
+        );
         usageData = extractDataFromFieldPath(item.json, usageDataFieldName);
       } else {
         // Use the item itself as the usage record (direct data mode)
+        logger.debug('PriceList Lookup: Using item directly as usage data');
         usageData = [item.json as UsageRecord];
       }
 
       // Validate usage data structure
       const usageDataValidation = validateUsageDataStructure(usageData);
       if (!usageDataValidation.valid && usageDataValidation.error) {
+        logger.warn(`PriceList Lookup: Invalid usage data structure in item ${i}`);
         errorRecords.push({
           json: {
             error: usageDataValidation.error,
@@ -173,116 +264,185 @@ export async function pricelistLookup(
         continue; // Skip this item and process the next one
       }
 
+      logger.info(
+        `PriceList Lookup: Processing ${usageData.length} usage records for item ${i + 1}`,
+      );
+
       // Process each usage record for this item against the shared price list
       const matchedRecords: CalculatedRecord[] = [];
       const unmatchedRecords: ExtendedUsageRecord[] = [];
 
       for (const usageRecord of usageData) {
-        // Find matching price records
-        const matchedPrice = findMatchingPriceRecords(usageRecord, priceList, matchFields);
+        // Find matching price records with enhanced function
+        const { match, isCustomerSpecificMatch, multipleCustomerMatches, customerMatchCount } =
+          findMatchingPriceRecords(
+            usageRecord,
+            priceList,
+            matchFields,
+            calculationConfig.customerPricingConfig,
+          );
 
-        // Check if we have exactly one match
-        if (matchedPrice) {
-          // Calculate amount and create output record
+        // Check if we have a valid match
+        if (match) {
+          // Process matched record
           const calculated = calculateAmount(
             usageRecord,
-            matchedPrice,
+            match,
             calculationConfig,
             outputConfig,
             matchFields,
           );
+
+          // Add information about match type for customer-specific pricing
+          if (
+            calculationConfig.customerPricingConfig?.useCustomerSpecificPricing &&
+            isCustomerSpecificMatch
+          ) {
+            // Flag this record as using customer-specific pricing
+            calculated.isCustomPricing = true;
+            calculated.customerIdField =
+              calculationConfig.customerPricingConfig.customerIdUsageField;
+            const customerId = getPropertyCaseInsensitive(
+              usageRecord,
+              calculationConfig.customerPricingConfig.customerIdUsageField,
+            );
+            if (typeof customerId === 'string' || typeof customerId === 'number') {
+              calculated.customerId = customerId;
+            }
+          } else {
+            // These fields will already have default values from calculateAmount
+            // No need to set them explicitly here
+          }
+
           matchedRecords.push(calculated);
         } else {
-          // Create a copy of the usage record with detailed match info
+          // Create unmatched record
           const unmatchedRecord: ExtendedUsageRecord = {
-            originalRecord: { ...usageRecord }, // Store original record
-            // Other fields (matchReason, etc.) will be populated below
+            originalRecord: { ...usageRecord },
           };
 
-          // Determine if any fields matched or if there were multiple matches
-          const matchingFields: string[] = [];
-          const nonMatchingFields: string[] = [];
-          let exactMatchCount = 0;
-          const exactlyMatchedItems: PriceListItem[] = [];
-          const partiallyMatchedItems: PriceListItem[] = [];
+          // Handle customer-specific pricing errors
+          if (
+            calculationConfig.customerPricingConfig?.useCustomerSpecificPricing &&
+            multipleCustomerMatches
+          ) {
+            unmatchedRecord.matchReason = 'Multiple customer-specific matches found';
+            unmatchedRecord.matchCount = customerMatchCount;
+            unmatchedRecord.isCustomerSpecificMatch = true;
 
-          // We'll check against each price list item individually rather than the whole array
-          for (const priceItem of priceList) {
-            let allFieldsMatchForItem = true;
-            const itemMatchingFields: string[] = [];
-            const itemNonMatchingFields: string[] = [];
+            // Get the customer ID for context
+            unmatchedRecord.customerIdField =
+              calculationConfig.customerPricingConfig.customerIdUsageField;
+            const customerId = getPropertyCaseInsensitive(
+              usageRecord,
+              calculationConfig.customerPricingConfig.customerIdUsageField,
+            );
+            unmatchedRecord.customerId = customerId;
 
-            // Check each match field against this price list item
-            for (const matchField of matchFields) {
-              const priceValue = getPropertyCaseInsensitive(priceItem, matchField.priceListField);
-              const usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
+            // Create customer-specific error
+            unmatchedRecord.processingErrorDetails = createStandardizedError(
+              ErrorCode.MULTIPLE_CUSTOMER_MATCHES_FOUND,
+              `Found ${customerMatchCount} price list entries for the same customer ID - ambiguous match`,
+              ErrorCategory.PROCESSING_ERROR,
+              {
+                context: {
+                  customerIdField: calculationConfig.customerPricingConfig.customerIdUsageField,
+                  customerId: customerId,
+                  matchCount: customerMatchCount,
+                },
+                suggestions: [
+                  'Check your price list for duplicate entries with the same customer ID',
+                  'Ensure each customer ID has at most one price list entry for each product',
+                  'Add additional match fields to differentiate between similar products for the same customer',
+                ],
+              },
+            );
+          } else {
+            // Determine if any fields matched or if there were multiple matches
+            const matchingFields: string[] = [];
+            const nonMatchingFields: string[] = [];
+            let exactMatchCount = 0;
+            const exactlyMatchedItems: PriceListItem[] = [];
+            const partiallyMatchedItems: PriceListItem[] = [];
 
-              // Track which fields matched or didn't match
-              if (priceValue !== undefined && usageValue !== undefined) {
-                let fieldMatched = false;
+            // We'll check against each price list item individually rather than the whole array
+            for (const priceItem of priceList) {
+              let allFieldsMatchForItem = true;
+              const itemMatchingFields: string[] = [];
+              const itemNonMatchingFields: string[] = [];
 
-                // Compare values based on type
-                if (typeof priceValue === 'string' && typeof usageValue === 'string') {
-                  fieldMatched = priceValue.toLowerCase() === usageValue.toLowerCase();
-                } else {
-                  fieldMatched = priceValue === usageValue;
-                }
+              // Check each match field against this price list item
+              for (const matchField of matchFields) {
+                const priceValue = getPropertyCaseInsensitive(priceItem, matchField.priceListField);
+                const usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
 
-                if (fieldMatched) {
-                  itemMatchingFields.push(matchField.usageField);
-                  if (!matchingFields.includes(matchField.usageField)) {
-                    matchingFields.push(matchField.usageField);
+                // Track which fields matched or didn't match
+                if (priceValue !== undefined && usageValue !== undefined) {
+                  let fieldMatched = false;
+
+                  // Compare values based on type
+                  if (typeof priceValue === 'string' && typeof usageValue === 'string') {
+                    fieldMatched = priceValue.toLowerCase() === usageValue.toLowerCase();
+                  } else {
+                    fieldMatched = priceValue === usageValue;
+                  }
+
+                  if (fieldMatched) {
+                    itemMatchingFields.push(matchField.usageField);
+                    if (!matchingFields.includes(matchField.usageField)) {
+                      matchingFields.push(matchField.usageField);
+                    }
+                  } else {
+                    allFieldsMatchForItem = false;
+                    itemNonMatchingFields.push(matchField.usageField);
+                    if (!nonMatchingFields.includes(matchField.usageField)) {
+                      nonMatchingFields.push(matchField.usageField);
+                    }
                   }
                 } else {
                   allFieldsMatchForItem = false;
+                  // If either value is undefined, mark field as non-matching
                   itemNonMatchingFields.push(matchField.usageField);
                   if (!nonMatchingFields.includes(matchField.usageField)) {
                     nonMatchingFields.push(matchField.usageField);
                   }
                 }
-              } else {
-                allFieldsMatchForItem = false;
-                // If either value is undefined, mark field as non-matching
-                itemNonMatchingFields.push(matchField.usageField);
-                if (!nonMatchingFields.includes(matchField.usageField)) {
-                  nonMatchingFields.push(matchField.usageField);
-                }
+              }
+
+              // If all fields matched for this item, increment our exact match count and store the item
+              if (allFieldsMatchForItem) {
+                exactMatchCount++;
+                exactlyMatchedItems.push(priceItem);
+              }
+
+              // If this item had at least one matching field (was part of a potential partial match)
+              if (itemMatchingFields.length > 0) {
+                partiallyMatchedItems.push(priceItem);
               }
             }
 
-            // If all fields matched for this item, increment our exact match count and store the item
-            if (allFieldsMatchForItem) {
-              exactMatchCount++;
-              exactlyMatchedItems.push(priceItem);
+            // Set match reason based on detailed analysis
+            if (matchingFields.length === 0) {
+              // No fields matched at all
+              unmatchedRecord.matchReason = 'No matching fields found';
+              unmatchedRecord.matchCount = 0;
+            } else if (exactMatchCount > 1) {
+              // Multiple items matched all criteria
+              unmatchedRecord.matchReason = 'Multiple exact matches found';
+              unmatchedRecord.matchCount = exactMatchCount;
+              unmatchedRecord.matchedFields = [...matchingFields];
+              unmatchedRecord.matchedPriceItems = [...exactlyMatchedItems];
+            } else if (nonMatchingFields.length > 0) {
+              // Some fields matched but others didn't - partial match
+              unmatchedRecord.matchReason = `Partial match - fields not matched: ${nonMatchingFields.join(', ')}`;
+              unmatchedRecord.matchCount = matchingFields.length;
+              unmatchedRecord.matchedFields = [...matchingFields];
+              unmatchedRecord.matchedPriceItems = [...new Set(partiallyMatchedItems)];
+            } else {
+              // Should not reach here, but just in case
+              unmatchedRecord.matchReason = 'Unknown match issue';
+              unmatchedRecord.matchCount = matchingFields.length;
             }
-
-            // If this item had at least one matching field (was part of a potential partial match)
-            if (itemMatchingFields.length > 0) {
-              partiallyMatchedItems.push(priceItem);
-            }
-          }
-
-          // Set match reason based on detailed analysis
-          if (matchingFields.length === 0) {
-            // No fields matched at all
-            unmatchedRecord.matchReason = 'No matching fields found';
-            unmatchedRecord.matchCount = 0;
-          } else if (exactMatchCount > 1) {
-            // Multiple items matched all criteria
-            unmatchedRecord.matchReason = 'Multiple exact matches found';
-            unmatchedRecord.matchCount = exactMatchCount;
-            unmatchedRecord.matchedFields = [...matchingFields];
-            unmatchedRecord.matchedPriceItems = [...exactlyMatchedItems];
-          } else if (nonMatchingFields.length > 0) {
-            // Some fields matched but others didn't - partial match
-            unmatchedRecord.matchReason = `Partial match - fields not matched: ${nonMatchingFields.join(', ')}`;
-            unmatchedRecord.matchCount = matchingFields.length;
-            unmatchedRecord.matchedFields = [...matchingFields];
-            unmatchedRecord.matchedPriceItems = [...new Set(partiallyMatchedItems)];
-          } else {
-            // Should not reach here, but just in case
-            unmatchedRecord.matchReason = 'Unknown match issue';
-            unmatchedRecord.matchCount = matchingFields.length;
           }
 
           // Add to tracking collections
@@ -352,13 +512,93 @@ export async function pricelistLookup(
       },
     }));
 
-    // Return outputs in the correct order: [validRecords (output 1), invalidRecords (output 2)]
-    return [successOutput, unmatchedOutput];
+    logger.info(
+      `PriceList Lookup: Process completed - Matched: ${allMatchedRecords.length}, Unmatched: ${allUnmatchedRecords.length}`,
+    );
+
+    // Return successful records first, then unmatched/error records
+    const successOutputFinal: INodeExecutionData[] = [];
+    if (allMatchedRecords.length > 0) {
+      // Create individual items for each matched record
+      for (const record of allMatchedRecords) {
+        successOutputFinal.push({
+          json: record,
+        });
+      }
+    }
+
+    // Create a simpler error object without context
+    if (allUnmatchedRecords.length > 0) {
+      // Create error output for each individual unmatched record
+      for (const unmatchedRecord of allUnmatchedRecords) {
+        // Create a more descriptive match reason that includes matched/unmatched fields
+        let detailedMatchReason = unmatchedRecord.matchReason || 'Unknown match issue';
+
+        // For partial matches, enhance the reason with both matched and unmatched fields
+        if (
+          unmatchedRecord.matchReason?.includes('Partial match') &&
+          unmatchedRecord.matchedFields &&
+          unmatchedRecord.matchedFields.length > 0
+        ) {
+          // Get all configured match fields
+          const allConfiguredMatchFields = matchFields.map((field) => field.usageField);
+          const unmatchedFields = allConfiguredMatchFields.filter(
+            (field) => !unmatchedRecord.matchedFields?.includes(field),
+          );
+
+          // Create matched fields pairs showing both price list and usage fields
+          const matchedFieldPairs = unmatchedRecord.matchedFields.map((usageField) => {
+            const matchConfig = matchFields.find((config) => config.usageField === usageField);
+            return matchConfig ? `${matchConfig.priceListField}=${usageField}` : usageField;
+          });
+
+          // Create unmatched fields pairs showing both price list and usage fields
+          const unmatchedFieldPairs = unmatchedFields.map((usageField) => {
+            const matchConfig = matchFields.find((config) => config.usageField === usageField);
+            return matchConfig ? `${matchConfig.priceListField}=${usageField}` : usageField;
+          });
+
+          // Create a detailed match reason with price list and usage field mappings
+          detailedMatchReason = `Partial match - Matched pairs (price list=usage): ${matchedFieldPairs.join(', ')}; Unmatched pairs: ${unmatchedFieldPairs.join(', ')}`;
+        }
+
+        // Create a simplified error without context
+        const errorWithoutContext = {
+          code: ErrorCode.NO_MATCH_FOUND,
+          category: ErrorCategory.PROCESSING_ERROR,
+          message: detailedMatchReason,
+        };
+
+        // Flatten error structure and remove redundant fields
+        errorRecords.push({
+          json: {
+            // Include original record data
+            ...unmatchedRecord.originalRecord,
+            // Add match count
+            matchCount: unmatchedRecord.matchCount || 0,
+            // Flatten error fields to top level
+            code: errorWithoutContext.code,
+            category: errorWithoutContext.category,
+            message: detailedMatchReason,
+            // matchReason removed as it duplicates message
+          },
+        });
+      }
+    }
+
+    return [successOutputFinal, errorRecords];
   } catch (error) {
-    // Use handleError to create a standardized error
+    logger.error(
+      `PriceList Lookup: Error processing data: ${(error as Error).message}`,
+      error as Error,
+    );
+
+    // Create standardized error
     const standardizedError = handleError(error as Error, {
-      calculationConfig,
+      priceListFieldName,
+      usageDataFieldName,
       matchFields,
+      calculationConfig,
       outputConfig,
     });
 
@@ -391,150 +631,304 @@ export async function pricelistLookup(
 }
 
 /**
- * Extract price list data from input
+ * Extract price list data from input based on field name or direct data
  */
 function extractPriceListData(
   inputData: IDataObject,
   fieldName: string | unknown,
 ): PriceListItem[] {
-  let priceList: PriceListItem[];
+  try {
+    logger.debug('PriceList Lookup: Extracting price list data');
 
-  // If fieldName is an array, it's the actual price list data
-  if (Array.isArray(fieldName)) {
-    // Use fieldName directly as the price list
-    priceList = fieldName as PriceListItem[];
-  }
-  // If fieldName is not a string or empty, use inputData
-  else if (typeof fieldName !== 'string' || !fieldName.trim()) {
-    // If inputData is already an array, use it directly
-    if (Array.isArray(inputData)) {
-      priceList = inputData as PriceListItem[];
-    } else {
-      // If inputData is a single object, wrap it in an array
-      priceList = [inputData as PriceListItem];
-    }
-  } else {
-    // Get the field value using the provided field name
-    const fieldValue = getPropertyCaseInsensitive(inputData, fieldName);
+    let priceList: PriceListItem[];
 
-    if (fieldValue === undefined) {
-      throw new Error(`Price list field "${fieldName}" not found in input data`);
+    // Check if fieldName is directly an array of price list items
+    if (Array.isArray(fieldName)) {
+      return fieldName as PriceListItem[];
     }
 
-    // Handle the extracted field value
-    if (Array.isArray(fieldValue)) {
-      // If fieldValue is already an array, use it directly
-      priceList = fieldValue as PriceListItem[];
-    } else {
-      // If fieldValue is a single object, wrap it in an array
-      priceList = [fieldValue as PriceListItem];
+    // If fieldName is not a string or is empty, use the input data directly
+    if (typeof fieldName !== 'string' || fieldName.trim() === '') {
+      // Check if input is array (common case)
+      if (Array.isArray(inputData)) {
+        return inputData as PriceListItem[];
+      }
+
+      // If not array, use the input directly as a single item price list
+      return [inputData as PriceListItem];
     }
-  }
 
-  return priceList;
-}
+    // Extract data from specified field path (normal operation)
+    priceList = _.get(inputData, fieldName) as PriceListItem[];
 
-/**
- * Extract data from a specific field path in an object
- */
-function extractDataFromFieldPath(inputData: IDataObject, fieldPath: string): UsageRecord[] {
-  if (!fieldPath.trim()) {
-    // If no field path specified, assume the input data itself is the usage record
-    return [inputData as UsageRecord];
-  }
+    // If not an array, check if it's an object with a price list property
+    if (!Array.isArray(priceList) && typeof priceList === 'object' && priceList !== null) {
+      // Try to find a property that might contain the price list
+      const possibleProps = Object.keys(priceList).filter((key) =>
+        Array.isArray((priceList as unknown as IDataObject)[key]),
+      );
 
-  // Get the field value
-  const fieldValue = getPropertyCaseInsensitive(inputData, fieldPath);
-  if (fieldValue === undefined) {
-    throw new Error(`Usage data field "${fieldPath}" not found in input data`);
-  }
+      if (possibleProps.length === 1) {
+        // Use the first array property found
+        priceList = (priceList as IDataObject)[possibleProps[0]] as PriceListItem[];
+      } else if (possibleProps.length > 1) {
+        // If multiple array properties, prefer ones with more standard names
+        const preferredPropNames = ['priceList', 'pricelist', 'prices', 'items', 'records', 'data'];
+        const matchedProp = possibleProps.find((prop) =>
+          preferredPropNames.some((name) => prop.toLowerCase().includes(name.toLowerCase())),
+        );
 
-  // Convert to array if it's an object (but not an array)
-  if (typeof fieldValue === 'object' && fieldValue !== null && !Array.isArray(fieldValue)) {
-    // Convert object to array of records
-    const records: UsageRecord[] = [];
-    for (const key in fieldValue as Record<string, unknown>) {
-      if (Object.prototype.hasOwnProperty.call(fieldValue, key)) {
-        const record = (fieldValue as Record<string, unknown>)[key];
-        if (typeof record === 'object' && record !== null) {
-          records.push(record as UsageRecord);
+        if (matchedProp) {
+          priceList = (priceList as IDataObject)[matchedProp] as PriceListItem[];
+        } else {
+          // If no preferred property found, use the first array property
+          priceList = (priceList as IDataObject)[possibleProps[0]] as PriceListItem[];
         }
       }
     }
-    return records;
-  }
 
-  // If it's already an array, return as is
-  if (Array.isArray(fieldValue)) {
-    return fieldValue as UsageRecord[];
-  }
+    // Ensure the result is an array
+    if (!Array.isArray(priceList)) {
+      // If not an array, convert to an array with the object as a single item
+      priceList = priceList ? [priceList as unknown as PriceListItem] : [];
+    }
 
-  // If it's a single value, wrap in array
-  return [fieldValue as UsageRecord];
+    return priceList;
+  } catch (error) {
+    logger.error(
+      `PriceList Lookup: Error extracting price list data: ${(error as Error).message}`,
+      error as Error,
+    );
+    throw error;
+  }
 }
 
 /**
- * Find matching price records for a usage record against a price list
- * Returns the matching price record if exactly one match is found
- * Returns null if no match or multiple matches are found
+ * Extract usage data from a field path in the input data
+ */
+function extractDataFromFieldPath(inputData: IDataObject, fieldPath: string): UsageRecord[] {
+  try {
+    logger.debug(`PriceList Lookup: Extracting usage data from field path: ${fieldPath}`);
+
+    if (!fieldPath.trim()) {
+      // If no field path specified, assume the input data itself is the usage record
+      return [inputData as UsageRecord];
+    }
+
+    // Get the field value
+    const fieldValue = getPropertyCaseInsensitive(inputData, fieldPath);
+    if (fieldValue === undefined) {
+      throw new Error(`Usage data field "${fieldPath}" not found in input data`);
+    }
+
+    // Convert to array if it's an object (but not an array)
+    if (typeof fieldValue === 'object' && fieldValue !== null && !Array.isArray(fieldValue)) {
+      // Convert object to array of records
+      const records: UsageRecord[] = [];
+      for (const key in fieldValue as Record<string, unknown>) {
+        if (Object.prototype.hasOwnProperty.call(fieldValue, key)) {
+          const record = (fieldValue as Record<string, unknown>)[key];
+          if (typeof record === 'object' && record !== null) {
+            records.push(record as UsageRecord);
+          }
+        }
+      }
+      return records;
+    }
+
+    // If it's already an array, return as is
+    if (Array.isArray(fieldValue)) {
+      return fieldValue as UsageRecord[];
+    }
+
+    // If it's a single value, wrap in array
+    return [fieldValue as UsageRecord];
+  } catch (error) {
+    logger.error(
+      `PriceList Lookup: Error extracting usage data: ${(error as Error).message}`,
+      error as Error,
+    );
+    throw error;
+  }
+}
+
+/**
+ * Find matching price list records for a usage record
  */
 function findMatchingPriceRecords(
   usageRecord: UsageRecord,
   priceList: PriceListItem[],
   matchFields: MatchFieldPair[],
-): PriceListItem | null {
-  if (matchFields.length === 0 || !priceList || priceList.length === 0) {
-    return null;
-  }
+  customerPricingConfig?: CustomerPricingConfig,
+): {
+  match: PriceListItem | null;
+  isCustomerSpecificMatch: boolean;
+  multipleCustomerMatches: boolean;
+  customerMatchCount: number;
+} {
+  try {
+    logger.debug(
+      `PriceList Lookup: Finding matches for usage record using ${matchFields.length} match fields`,
+    );
 
-  const matchedItems: PriceListItem[] = [];
+    // Default return object
+    const result = {
+      match: null as PriceListItem | null,
+      isCustomerSpecificMatch: false,
+      multipleCustomerMatches: false,
+      customerMatchCount: 0,
+    };
 
-  // Iterate through each price list item to find matches
-  for (const priceItem of priceList) {
-    let allFieldsMatch = true;
+    if (matchFields.length === 0 || !priceList || priceList.length === 0) {
+      return result;
+    }
 
-    // Check each match field for this price item
-    for (const matchField of matchFields) {
-      // Use case-insensitive property lookup
-      const priceValue = getPropertyCaseInsensitive(priceItem, matchField.priceListField);
-      const usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
+    // First try customer-specific matching if enabled
+    if (customerPricingConfig?.useCustomerSpecificPricing) {
+      const customerIdUsageField = customerPricingConfig.customerIdUsageField;
+      const customerIdPriceListField = customerPricingConfig.customerIdPriceListField;
 
-      // If either value is undefined, this item doesn't match
-      if (priceValue === undefined || usageValue === undefined) {
-        allFieldsMatch = false;
-        break;
+      // Get customer ID from usage record
+      const customerIdValue = getPropertyCaseInsensitive(usageRecord, customerIdUsageField);
+
+      if (customerIdValue !== undefined) {
+        logger.debug(
+          `PriceList Lookup: Performing customer-specific match with customer ID from field "${customerIdUsageField}"`,
+        );
+
+        // Find customer-specific matches
+        const customerSpecificMatches: PriceListItem[] = [];
+
+        for (const priceItem of priceList) {
+          // Match on customer ID first
+          const priceCustomerId = getPropertyCaseInsensitive(priceItem, customerIdPriceListField);
+
+          // Skip if customer ID doesn't match
+          if (
+            priceCustomerId === undefined ||
+            (typeof priceCustomerId === 'string' && typeof customerIdValue === 'string'
+              ? priceCustomerId.toLowerCase() !== customerIdValue.toLowerCase()
+              : priceCustomerId !== customerIdValue)
+          ) {
+            continue;
+          }
+
+          // Now check all other match fields
+          let allFieldsMatch = true;
+          for (const matchField of matchFields) {
+            // Use case-insensitive property lookup
+            const priceValue = getPropertyCaseInsensitive(priceItem, matchField.priceListField);
+            const usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
+
+            // If either value is undefined, this item doesn't match
+            if (priceValue === undefined || usageValue === undefined) {
+              allFieldsMatch = false;
+              break;
+            }
+
+            // Case insensitive comparison for string values
+            if (typeof priceValue === 'string' && typeof usageValue === 'string') {
+              if (priceValue.toLowerCase() !== usageValue.toLowerCase()) {
+                allFieldsMatch = false;
+                break;
+              }
+            } else if (priceValue !== usageValue) {
+              // Regular comparison for non-string values
+              allFieldsMatch = false;
+              break;
+            }
+          }
+
+          // If all fields matched, add to matches
+          if (allFieldsMatch) {
+            customerSpecificMatches.push(priceItem);
+          }
+        }
+
+        // Save match count for reporting
+        result.customerMatchCount = customerSpecificMatches.length;
+
+        // Exactly one customer-specific match found
+        if (customerSpecificMatches.length === 1) {
+          logger.debug('PriceList Lookup: Found exactly one customer-specific match');
+          result.match = customerSpecificMatches[0];
+          result.isCustomerSpecificMatch = true;
+          return result;
+        }
+
+        // Multiple customer-specific matches found
+        if (customerSpecificMatches.length > 1) {
+          logger.warn(
+            `PriceList Lookup: Found ${customerSpecificMatches.length} customer-specific matches, which is ambiguous`,
+          );
+          result.multipleCustomerMatches = true;
+          return result;
+        }
+
+        // No customer-specific match, fall back to regular matching
+        logger.debug(
+          'PriceList Lookup: No customer-specific match found, falling back to regular matching',
+        );
       }
+    }
 
-      // Case insensitive comparison for string values
-      if (typeof priceValue === 'string' && typeof usageValue === 'string') {
-        if (priceValue.toLowerCase() !== usageValue.toLowerCase()) {
+    // Regular matching logic (similar to original)
+    const matchedItems: PriceListItem[] = [];
+
+    // Iterate through each price list item to find matches
+    for (const priceItem of priceList) {
+      let allFieldsMatch = true;
+
+      // Check each match field for this price item
+      for (const matchField of matchFields) {
+        // Use case-insensitive property lookup
+        const priceValue = getPropertyCaseInsensitive(priceItem, matchField.priceListField);
+        const usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
+
+        // If either value is undefined, this item doesn't match
+        if (priceValue === undefined || usageValue === undefined) {
           allFieldsMatch = false;
           break;
         }
-      } else if (priceValue !== usageValue) {
-        // Regular comparison for non-string values
-        allFieldsMatch = false;
-        break;
+
+        // Case insensitive comparison for string values
+        if (typeof priceValue === 'string' && typeof usageValue === 'string') {
+          if (priceValue.toLowerCase() !== usageValue.toLowerCase()) {
+            allFieldsMatch = false;
+            break;
+          }
+        } else if (priceValue !== usageValue) {
+          // Regular comparison for non-string values
+          allFieldsMatch = false;
+          break;
+        }
+      }
+
+      // If all fields matched, add to matches
+      if (allFieldsMatch) {
+        matchedItems.push(priceItem);
       }
     }
 
-    // If all fields matched, add to matches
-    if (allFieldsMatch) {
-      matchedItems.push(priceItem);
+    // Check if we have exactly one match
+    if (matchedItems.length === 1) {
+      result.match = matchedItems[0];
+      return result;
     }
-  }
 
-  // Check if we have exactly one match
-  if (matchedItems.length === 1) {
-    return matchedItems[0];
+    // No matches or multiple matches
+    return result;
+  } catch (error) {
+    logger.error(
+      `PriceList Lookup: Error finding matching price records: ${(error as Error).message}`,
+      error as Error,
+    );
+    throw error;
   }
-
-  // No matches found or multiple matches
-  return null;
 }
 
 /**
- * Calculate amount based on usage and price
+ * Calculate cost and price amounts based on usage quantity and price list rates
  */
 function calculateAmount(
   usageRecord: UsageRecord,
@@ -543,61 +937,105 @@ function calculateAmount(
   outputConfig: OutputFieldConfig,
   matchFields: MatchFieldPair[],
 ): CalculatedRecord {
-  // Create the output record
-  const outputRecord: CalculatedRecord = {};
+  try {
+    logger.debug(
+      `PriceList Lookup: Calculating amounts using ${calculationConfig.quantityField} quantity field`,
+    );
 
-  // Get quantity and price values using case-insensitive property lookup
-  const quantity = Number(
-    getPropertyCaseInsensitive(usageRecord, calculationConfig.quantityField) || 0,
-  );
-  const price = Number(getPropertyCaseInsensitive(priceRecord, calculationConfig.priceField) || 0);
+    // Create the output record
+    const outputRecord: CalculatedRecord = {};
 
-  // Calculate amount
-  let amount = multiply(quantity, price);
+    // Always include the customer-specific pricing fields for consistent output schema
+    // These will be overridden later if this is a customer-specific match
+    outputRecord.isCustomPricing = false;
+    outputRecord.customerIdField = '';
+    outputRecord.customerId = '';
 
-  // Apply rounding if enabled (roundingDirection is not 'none')
-  if (calculationConfig.roundingDirection && calculationConfig.roundingDirection !== 'none') {
-    const decimalPlaces =
-      calculationConfig.decimalPlaces !== undefined ? calculationConfig.decimalPlaces : 1;
-    const roundingDirection = calculationConfig.roundingDirection;
+    // Get quantity value using case-insensitive property lookup
+    const quantity = Number(
+      getPropertyCaseInsensitive(usageRecord, calculationConfig.quantityField) || 0,
+    );
 
-    const decimalAmount = new Decimal(amount);
-    if (roundingDirection === 'up') {
-      // Round up (ceiling) to specified decimal places
-      amount = decimalAmount.toDecimalPlaces(decimalPlaces, Decimal.ROUND_UP).toNumber();
-    } else {
-      // Round down (floor) to specified decimal places
-      amount = decimalAmount.toDecimalPlaces(decimalPlaces, Decimal.ROUND_DOWN).toNumber();
+    // Get cost and sell price values using case-insensitive property lookup
+    const costPrice = Number(
+      getPropertyCaseInsensitive(priceRecord, calculationConfig.costPriceField) || 0,
+    );
+    const sellPrice = Number(
+      getPropertyCaseInsensitive(priceRecord, calculationConfig.sellPriceField) || 0,
+    );
+
+    // Calculate cost and sell amounts
+    let costAmount = multiply(quantity, costPrice);
+    let sellAmount = multiply(quantity, sellPrice);
+
+    // Apply rounding if enabled (roundingDirection is not 'none')
+    if (calculationConfig.roundingDirection && calculationConfig.roundingDirection !== 'none') {
+      const decimalPlaces =
+        calculationConfig.decimalPlaces !== undefined ? calculationConfig.decimalPlaces : 1;
+      const roundingDirection = calculationConfig.roundingDirection;
+
+      // Round cost amount
+      const decimalCostAmount = new Decimal(costAmount);
+      if (roundingDirection === 'up') {
+        // Round up (ceiling) to specified decimal places
+        costAmount = decimalCostAmount.toDecimalPlaces(decimalPlaces, Decimal.ROUND_UP).toNumber();
+      } else {
+        // Round down (floor) to specified decimal places
+        costAmount = decimalCostAmount
+          .toDecimalPlaces(decimalPlaces, Decimal.ROUND_DOWN)
+          .toNumber();
+      }
+
+      // Round sell amount
+      const decimalSellAmount = new Decimal(sellAmount);
+      if (roundingDirection === 'up') {
+        // Round up (ceiling) to specified decimal places
+        sellAmount = decimalSellAmount.toDecimalPlaces(decimalPlaces, Decimal.ROUND_UP).toNumber();
+      } else {
+        // Round down (floor) to specified decimal places
+        sellAmount = decimalSellAmount
+          .toDecimalPlaces(decimalPlaces, Decimal.ROUND_DOWN)
+          .toNumber();
+      }
     }
+
+    // Get prefixes from outputConfig (with defaults)
+    const pricelistPrefix = outputConfig.pricelistFieldPrefix || 'price_';
+    const usagePrefix = outputConfig.usageFieldPrefix || 'usage_';
+    const calcPrefix = outputConfig.calculationFieldPrefix || 'calc_';
+    const costAmountFieldName = outputConfig.calculatedCostAmountField || 'calc_cost_amount';
+    const sellAmountFieldName = outputConfig.calculatedSellAmountField || 'calc_sell_amount';
+
+    // Add match fields from price record if enabled
+    if (outputConfig.includeMatchPricelistFields !== false) {
+      addMatchFieldsToOutput(outputRecord, priceRecord, matchFields, 'pricelist', pricelistPrefix);
+    }
+
+    // Add match fields from usage record if enabled
+    if (outputConfig.includeMatchUsageFields !== false) {
+      addMatchFieldsToOutput(outputRecord, usageRecord, matchFields, 'usage', usagePrefix);
+    }
+
+    // Include quantity and price fields if calculation fields are enabled
+    if (outputConfig.includeCalculationFields !== false) {
+      outputRecord[`${calcPrefix}${calculationConfig.quantityField}`] = quantity;
+      outputRecord[`${calcPrefix}${calculationConfig.costPriceField}`] = costPrice;
+      outputRecord[`${calcPrefix}${calculationConfig.sellPriceField}`] = sellPrice;
+    }
+
+    // Add calculated amounts to output
+    outputRecord[costAmountFieldName] = costAmount;
+    outputRecord[sellAmountFieldName] = sellAmount;
+
+    // Add any additional configured output fields
+    addExtraFieldsToOutput(outputRecord, priceRecord, usageRecord, outputConfig);
+
+    return outputRecord;
+  } catch (error) {
+    logger.error(
+      `PriceList Lookup: Error calculating amounts: ${(error as Error).message}`,
+      error as Error,
+    );
+    throw error;
   }
-
-  // Get prefixes from outputConfig (with defaults)
-  const pricelistPrefix = outputConfig.pricelistFieldPrefix || 'price_';
-  const usagePrefix = outputConfig.usageFieldPrefix || 'usage_';
-  const calcPrefix = outputConfig.calculationFieldPrefix || 'calc_';
-  const amountFieldName = outputConfig.calculatedAmountField || 'calc_amount';
-
-  // Add match fields from price record if enabled
-  if (outputConfig.includeMatchPricelistFields !== false) {
-    addMatchFieldsToOutput(outputRecord, priceRecord, matchFields, 'pricelist', pricelistPrefix);
-  }
-
-  // Add match fields from usage record if enabled
-  if (outputConfig.includeMatchUsageFields !== false) {
-    addMatchFieldsToOutput(outputRecord, usageRecord, matchFields, 'usage', usagePrefix);
-  }
-
-  // Include quantity and price fields if calculation fields are enabled
-  if (outputConfig.includeCalculationFields !== false) {
-    outputRecord[`${calcPrefix}${calculationConfig.quantityField}`] = quantity;
-    outputRecord[`${calcPrefix}${calculationConfig.priceField}`] = price;
-  }
-
-  // Add calculated amount to output
-  outputRecord[amountFieldName] = amount;
-
-  // Add any additional configured output fields
-  addExtraFieldsToOutput(outputRecord, priceRecord, usageRecord, outputConfig);
-
-  return outputRecord;
 }

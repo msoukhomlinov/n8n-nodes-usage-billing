@@ -1,4 +1,5 @@
 # n8n-nodes-usage-billing
+This n8n community node provides usage-based billing calculation functionality. It takes usage data and price lists as inputs, performs matching and calculation, and outputs formatted billing records.
 
 ![n8n-nodes-usage-billing](https://img.shields.io/badge/n8n--nodes--usage--billing-latest-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)

@@ -39,9 +39,9 @@ coverage/
 .cursorcache
 .cursor-settings.json
 
-# Lock files - keep pnpm-lock.yaml for consistency
+# Lock files
 package-lock.json
-# pnpm-lock.yaml removed to allow committing
+pnpm-lock.yaml
 
-# Sample files - keep for documentation
-# sample-pricelist.csv removed to allow committing
+# Sample files
+sample-pricelist.csv

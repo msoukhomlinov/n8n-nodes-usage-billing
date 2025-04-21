@@ -142,7 +142,19 @@ The goal is to help you maintain a big picture as well as the progress of the ta
 # Lessons
 
 # Scratchpad
+[X] Use server memory to identify mixup in match usage and calculate operation
+[X] ~~Swap output arrays in pricelistLookup function~~ Reverted swap based on user feedback.
+[X] Adjusted matchReason and matchCount logic as needed
+[X] Found and fixed critical price list array handling issue:
+   - The actual price list array was being passed as the `priceListFieldName` parameter, not in the usage data
+   - The `extractPriceListData` function wasn't correctly handling arrays in the `fieldName` parameter
+   - Modified `extractPriceListData` to identify and use the array directly when passed as `fieldName`
+   - The matches are now found correctly against the proper price list items
+   - Calculations are working correctly using the real price values from the price list (`CostUSD`)
+   - Proper case-insensitive matching is handling the capitalization differences (ProductName vs productName)
+   - Cleaned up debugging code once the issue was resolved
 
 # Todo
-1. Fix: "Output Field Configuration" is controlling invalid output instead of valid output of Match Usage and Calculate. This could be because of use of common processinf functions. Valid records output should be controlled by Output Field Configuration and Output Fields, whilst invalid output should output the full details of usage item plus error message and match count.
-2. Modify findMatchingPriceRecords to match as many items from the usage against the price list items and if there's more than one match against the pricelist, that should be considered invalid.
+[X] ~~Swap outputs in pricelistLookup (return [unmatchedOutput, successOutput])~~ Reverted swap.
+[X] Confirm matchReason and matchCount only on invalid records
+[X] Fix price list array handling

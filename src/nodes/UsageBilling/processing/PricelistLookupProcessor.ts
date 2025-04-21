@@ -7,6 +7,7 @@ import type {
   CalculationConfig,
   OutputFieldConfig,
 } from '../interfaces';
+import type { StandardizedError } from '../utils/errorHandling';
 import { multiply } from '../utils/calculations';
 import {
   handleError,
@@ -26,11 +27,14 @@ import {
 import Decimal from 'decimal.js';
 import _ from 'lodash';
 
-// Define extended UsageRecord type with match properties
-type ExtendedUsageRecord = UsageRecord & {
+// Define extended UsageRecord type containing original record and match/error details
+type ExtendedUsageRecord = {
+  originalRecord: UsageRecord; // Keep original data separate
   matchReason?: string;
   matchCount?: number;
   matchedFields?: string[];
+  matchedPriceItems?: PriceListItem[];
+  processingErrorDetails?: StandardizedError;
 };
 
 /**
@@ -47,11 +51,13 @@ export async function pricelistLookup(
 ): Promise<INodeExecutionData[][]> {
   // Arrays to hold all matched and unmatched records
   const allMatchedRecords: CalculatedRecord[] = [];
-  const allUnmatchedRecords: ExtendedUsageRecord[] = [];
+  const allUnmatchedRecords: ExtendedUsageRecord[] = []; // Use the new type
   // Array to hold error records for the second output
   const errorRecords: INodeExecutionData[] = [];
   // Arrays to track no-match records for detailed error reporting
-  const noMatchRecords: ExtendedUsageRecord[] = [];
+  // Note: noMatchRecords was used for creating a summary error, which is currently bypassed
+  // We might need to adjust this if we re-introduce summary errors
+  // const noMatchRecords: ExtendedUsageRecord[] = [];
 
   try {
     // Basic input validation
@@ -121,9 +127,20 @@ export async function pricelistLookup(
     const priceList = extractPriceListData(items[0].json, priceListFieldName);
 
     // Validate price list structure
-    const priceListValidation = validatePriceListStructure(priceList);
-    if (!priceListValidation.valid && priceListValidation.error) {
-      errorRecords.push({ json: { error: priceListValidation.error } });
+    if (!priceList || priceList.length === 0) {
+      const error = createStandardizedError(
+        ErrorCode.INVALID_PRICE_LIST_FORMAT,
+        'Price list data is empty or invalid',
+        ErrorCategory.INPUT_ERROR,
+        {
+          suggestions: [
+            'Check that your price list data is properly formatted',
+            'Ensure the price list contains at least one item',
+            'Verify the Price List Field Name parameter is correct',
+          ],
+        },
+      );
+      errorRecords.push({ json: { error } });
       // Return empty valid records first, then invalid records
       return [[], errorRecords];
     }
@@ -177,82 +194,165 @@ export async function pricelistLookup(
           matchedRecords.push(calculated);
         } else {
           // Create a copy of the usage record with detailed match info
-          const unmatchedRecord: ExtendedUsageRecord = { ...usageRecord };
+          const unmatchedRecord: ExtendedUsageRecord = {
+            originalRecord: { ...usageRecord }, // Store original record
+            // Other fields (matchReason, etc.) will be populated below
+          };
 
           // Determine if any fields matched or if there were multiple matches
-          let allFieldsMatched = true;
           const matchingFields: string[] = [];
+          const nonMatchingFields: string[] = [];
+          let exactMatchCount = 0;
+          const exactlyMatchedItems: PriceListItem[] = [];
+          const partiallyMatchedItems: PriceListItem[] = [];
 
-          // Check each match field
-          for (const matchField of matchFields) {
-            const priceValue = getPropertyCaseInsensitive(priceList, matchField.priceListField);
-            const usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
+          // We'll check against each price list item individually rather than the whole array
+          for (const priceItem of priceList) {
+            let allFieldsMatchForItem = true;
+            const itemMatchingFields: string[] = [];
+            const itemNonMatchingFields: string[] = [];
 
-            // Track which fields matched
-            if (priceValue !== undefined && usageValue !== undefined) {
-              let fieldMatched = false;
+            // Check each match field against this price list item
+            for (const matchField of matchFields) {
+              const priceValue = getPropertyCaseInsensitive(priceItem, matchField.priceListField);
+              const usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
 
-              // Compare values based on type
-              if (typeof priceValue === 'string' && typeof usageValue === 'string') {
-                fieldMatched = priceValue.toLowerCase() === usageValue.toLowerCase();
+              // Track which fields matched or didn't match
+              if (priceValue !== undefined && usageValue !== undefined) {
+                let fieldMatched = false;
+
+                // Compare values based on type
+                if (typeof priceValue === 'string' && typeof usageValue === 'string') {
+                  fieldMatched = priceValue.toLowerCase() === usageValue.toLowerCase();
+                } else {
+                  fieldMatched = priceValue === usageValue;
+                }
+
+                if (fieldMatched) {
+                  itemMatchingFields.push(matchField.usageField);
+                  if (!matchingFields.includes(matchField.usageField)) {
+                    matchingFields.push(matchField.usageField);
+                  }
+                } else {
+                  allFieldsMatchForItem = false;
+                  itemNonMatchingFields.push(matchField.usageField);
+                  if (!nonMatchingFields.includes(matchField.usageField)) {
+                    nonMatchingFields.push(matchField.usageField);
+                  }
+                }
               } else {
-                fieldMatched = priceValue === usageValue;
+                allFieldsMatchForItem = false;
+                // If either value is undefined, mark field as non-matching
+                itemNonMatchingFields.push(matchField.usageField);
+                if (!nonMatchingFields.includes(matchField.usageField)) {
+                  nonMatchingFields.push(matchField.usageField);
+                }
               }
+            }
 
-              if (fieldMatched) {
-                matchingFields.push(matchField.usageField);
-              } else {
-                allFieldsMatched = false;
-              }
-            } else {
-              allFieldsMatched = false;
+            // If all fields matched for this item, increment our exact match count and store the item
+            if (allFieldsMatchForItem) {
+              exactMatchCount++;
+              exactlyMatchedItems.push(priceItem);
+            }
+
+            // If this item had at least one matching field (was part of a potential partial match)
+            if (itemMatchingFields.length > 0) {
+              partiallyMatchedItems.push(priceItem);
             }
           }
 
-          // Set match reason based on the outcome
+          // Set match reason based on detailed analysis
           if (matchingFields.length === 0) {
+            // No fields matched at all
             unmatchedRecord.matchReason = 'No matching fields found';
             unmatchedRecord.matchCount = 0;
-          } else if (!allFieldsMatched) {
-            unmatchedRecord.matchReason = 'Partial match - some fields did not match';
+          } else if (exactMatchCount > 1) {
+            // Multiple items matched all criteria
+            unmatchedRecord.matchReason = 'Multiple exact matches found';
+            unmatchedRecord.matchCount = exactMatchCount;
+            unmatchedRecord.matchedFields = [...matchingFields];
+            unmatchedRecord.matchedPriceItems = [...exactlyMatchedItems];
+          } else if (nonMatchingFields.length > 0) {
+            // Some fields matched but others didn't - partial match
+            unmatchedRecord.matchReason = `Partial match - fields not matched: ${nonMatchingFields.join(', ')}`;
             unmatchedRecord.matchCount = matchingFields.length;
-            unmatchedRecord.matchedFields = matchingFields;
+            unmatchedRecord.matchedFields = [...matchingFields];
+            unmatchedRecord.matchedPriceItems = [...new Set(partiallyMatchedItems)];
           } else {
-            // This shouldn't happen but is here for completeness
-            unmatchedRecord.matchReason = 'Unknown matching issue';
+            // Should not reach here, but just in case
+            unmatchedRecord.matchReason = 'Unknown match issue';
             unmatchedRecord.matchCount = matchingFields.length;
           }
 
           // Add to tracking collections
-          noMatchRecords.push(unmatchedRecord);
-          unmatchedRecords.push(unmatchedRecord);
+          // noMatchRecords.push(unmatchedRecord); // Temporarily commented out
+          allUnmatchedRecords.push(unmatchedRecord);
         }
       }
 
       // Add this item's results to the overall collections
-      allMatchedRecords.push(...matchedRecords);
-      allUnmatchedRecords.push(...unmatchedRecords);
+      allMatchedRecords.push(...matchedRecords); // Collect matched records from this item
+      // allUnmatchedRecords.push(...unmatchedRecords); // Already done inside loop
     }
 
     // Create standardized errors for unmatched records if any
-    if (noMatchRecords.length > 0) {
-      errorRecords.push({
-        json: {
-          error: createUnmatchedRecordsError(noMatchRecords, 'none'),
-        },
+    if (allUnmatchedRecords.length > 0) {
+      // Create simplified versions of the records for the error context
+      // to avoid circular references
+      const simplifiedRecords = allUnmatchedRecords.map((record) => {
+        // Extract just the basic information needed for the error message
+        // without creating circular references
+        return {
+          // Include original record data but exclude complex nested objects
+          ...record.originalRecord,
+          matchReason: record.matchReason,
+          matchCount: record.matchCount,
+          // Don't include the full matchedPriceItems arrays to avoid circular references
+        };
       });
+
+      // Generate the standardized error using the simplified records
+      const unmatchedError = createUnmatchedRecordsError(simplifiedRecords, 'none');
+
+      // Add this error to each unmatched record
+      for (const record of allUnmatchedRecords) {
+        record.processingErrorDetails = unmatchedError;
+      }
     }
 
     // Prepare output data - valid matched records for the first output
     const successOutput = allMatchedRecords.map((record) => ({ json: record }));
 
-    // Merge unmatched records with error records for the second output
-    const unmatchedOutput = [
-      ...allUnmatchedRecords.map((record) => ({ json: record })),
-      ...errorRecords,
-    ];
+    // Prepare the second output (unmatched/error records) ensuring consistent schema
+    // We will only include allUnmatchedRecords (which now have any error details embedded)
+    // and skip any separate error records
+    const unmatchedOutputRecords = allUnmatchedRecords.map((record) => {
+      // Ensure all standard fields exist, even if empty/default
+      return {
+        originalRecord: record.originalRecord,
+        matchReason: record.matchReason ?? 'Unknown Match Issue',
+        matchCount: record.matchCount ?? 0,
+        matchedFields: record.matchedFields ?? [],
+        matchedPriceItems: record.matchedPriceItems ?? [],
+        processingErrorDetails: record.processingErrorDetails,
+      };
+    });
 
-    // Return outputs in the correct order: [validRecords, invalidRecords]
+    // No longer need to create and combine separate processing error records
+    // Just use the unmatchedOutputRecords which now have all necessary information
+    const unmatchedOutput = unmatchedOutputRecords.map((record) => ({
+      json: {
+        ...record.originalRecord,
+        matchReason: record.matchReason,
+        matchCount: record.matchCount,
+        matchedFields: record.matchedFields,
+        matchedPriceItems: record.matchedPriceItems,
+        processingErrorDetails: record.processingErrorDetails,
+      },
+    }));
+
+    // Return outputs in the correct order: [validRecords (output 1), invalidRecords (output 2)]
     return [successOutput, unmatchedOutput];
   } catch (error) {
     // Use handleError to create a standardized error
@@ -262,34 +362,76 @@ export async function pricelistLookup(
       outputConfig,
     });
 
-    // Add to error records
-    errorRecords.push({
+    // Create a standardized output record for the caught error
+    const errorOutputRecord: ExtendedUsageRecord = {
+      originalRecord: {}, // Base UsageRecord part is an empty object
+      matchReason: 'Critical Processing Error',
+      matchCount: 0,
+      matchedFields: [], // Keep empty arrays here
+      matchedPriceItems: [], // Keep empty arrays here
+      processingErrorDetails: standardizedError,
+    };
+
+    // Flatten the output structure for the final JSON
+    const finalErrorOutput = {
       json: {
-        error: standardizedError,
+        ...errorOutputRecord.originalRecord,
+        matchReason: errorOutputRecord.matchReason,
+        matchCount: errorOutputRecord.matchCount,
+        matchedFields: errorOutputRecord.matchedFields,
+        matchedPriceItems: errorOutputRecord.matchedPriceItems,
+        processingErrorDetails: errorOutputRecord.processingErrorDetails,
       },
-    });
+    };
 
     // Return in the correct order: [validRecords (empty), invalidRecords]
-    return [[], errorRecords];
+    // The second output contains a single record detailing the critical error
+    return [[], [finalErrorOutput]];
   }
 }
 
 /**
  * Extract price list data from input
  */
-function extractPriceListData(inputData: IDataObject, fieldName: string | unknown): PriceListItem {
-  if (typeof fieldName !== 'string' || !fieldName.trim()) {
-    // If no field name specified, assume the input data itself is the price list
-    return inputData as PriceListItem;
+function extractPriceListData(
+  inputData: IDataObject,
+  fieldName: string | unknown,
+): PriceListItem[] {
+  let priceList: PriceListItem[];
+
+  // If fieldName is an array, it's the actual price list data
+  if (Array.isArray(fieldName)) {
+    // Use fieldName directly as the price list
+    priceList = fieldName as PriceListItem[];
+  }
+  // If fieldName is not a string or empty, use inputData
+  else if (typeof fieldName !== 'string' || !fieldName.trim()) {
+    // If inputData is already an array, use it directly
+    if (Array.isArray(inputData)) {
+      priceList = inputData as PriceListItem[];
+    } else {
+      // If inputData is a single object, wrap it in an array
+      priceList = [inputData as PriceListItem];
+    }
+  } else {
+    // Get the field value using the provided field name
+    const fieldValue = getPropertyCaseInsensitive(inputData, fieldName);
+
+    if (fieldValue === undefined) {
+      throw new Error(`Price list field "${fieldName}" not found in input data`);
+    }
+
+    // Handle the extracted field value
+    if (Array.isArray(fieldValue)) {
+      // If fieldValue is already an array, use it directly
+      priceList = fieldValue as PriceListItem[];
+    } else {
+      // If fieldValue is a single object, wrap it in an array
+      priceList = [fieldValue as PriceListItem];
+    }
   }
 
-  // Get the field value
-  const fieldValue = getPropertyCaseInsensitive(inputData, fieldName);
-  if (fieldValue === undefined) {
-    throw new Error(`Price list field "${fieldName}" not found in input data`);
-  }
-
-  return fieldValue as PriceListItem;
+  return priceList;
 }
 
 /**
@@ -338,36 +480,57 @@ function extractDataFromFieldPath(inputData: IDataObject, fieldPath: string): Us
  */
 function findMatchingPriceRecords(
   usageRecord: UsageRecord,
-  priceList: PriceListItem,
+  priceList: PriceListItem[],
   matchFields: MatchFieldPair[],
 ): PriceListItem | null {
-  if (matchFields.length === 0) {
+  if (matchFields.length === 0 || !priceList || priceList.length === 0) {
     return null;
   }
 
-  // Check if the price list matches all configured match fields
-  for (const matchField of matchFields) {
-    // Use case-insensitive property lookup
-    const priceValue = getPropertyCaseInsensitive(priceList, matchField.priceListField);
-    const usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
+  const matchedItems: PriceListItem[] = [];
 
-    // If either value is undefined, return false
-    if (priceValue === undefined || usageValue === undefined) {
-      return null;
+  // Iterate through each price list item to find matches
+  for (const priceItem of priceList) {
+    let allFieldsMatch = true;
+
+    // Check each match field for this price item
+    for (const matchField of matchFields) {
+      // Use case-insensitive property lookup
+      const priceValue = getPropertyCaseInsensitive(priceItem, matchField.priceListField);
+      const usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
+
+      // If either value is undefined, this item doesn't match
+      if (priceValue === undefined || usageValue === undefined) {
+        allFieldsMatch = false;
+        break;
+      }
+
+      // Case insensitive comparison for string values
+      if (typeof priceValue === 'string' && typeof usageValue === 'string') {
+        if (priceValue.toLowerCase() !== usageValue.toLowerCase()) {
+          allFieldsMatch = false;
+          break;
+        }
+      } else if (priceValue !== usageValue) {
+        // Regular comparison for non-string values
+        allFieldsMatch = false;
+        break;
+      }
     }
 
-    // Case insensitive comparison for string values
-    if (typeof priceValue === 'string' && typeof usageValue === 'string') {
-      if (priceValue.toLowerCase() !== usageValue.toLowerCase()) {
-        return null;
-      }
-    } else if (priceValue !== usageValue) {
-      // Regular comparison for non-string values
-      return null;
+    // If all fields matched, add to matches
+    if (allFieldsMatch) {
+      matchedItems.push(priceItem);
     }
   }
 
-  return priceList;
+  // Check if we have exactly one match
+  if (matchedItems.length === 1) {
+    return matchedItems[0];
+  }
+
+  // No matches found or multiple matches
+  return null;
 }
 
 /**

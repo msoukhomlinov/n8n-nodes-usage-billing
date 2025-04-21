@@ -5,13 +5,6 @@ All notable changes to the n8n-nodes-usage-billing node will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.1] - 2025-04-21
-
-### Changed
-- Removed editor configuration files from Git tracking
-- Updated .gitignore to better manage editor-specific files
-- Ensured sample files and lock files are properly tracked
-
 ## [0.1.0] - 2025-04-21
 
 ### Initial Release

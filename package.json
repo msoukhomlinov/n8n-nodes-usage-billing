@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-usage-billing",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "n8n": {
     "n8nNodesApiVersion": 1,
@@ -9,6 +9,12 @@
       "dist/nodes/UsageBilling/UsageBilling.node.js"
     ]
   },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
   "scripts": {
     "clean": "rimraf dist",
     "build": "npm run clean && npx tsc && npm run build:icons",
@@ -17,7 +23,7 @@
     "build:icons": "gulp build:icons",
     "format": "prettier nodes --write",
     "lint": "eslint nodes",
-    "test": "jest"
+    "prepare": "npm run build"
   },
   "keywords": [
     "n8n",

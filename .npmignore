@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+
+# Testing
+coverage/
+.nyc_output/
+
+# Editor specific files
+.cursorrules
+.cursorignore
+.cursorconfig
+.cursorcache
+.cursor-settings.json
+
+# Sample files
+sample-pricelist.csv
+
+# Source files (since we're distributing the built version)
+src/
+
+# Build output - COMMENT THIS OUT to include dist in the package
+# dist/
+# build/
+# out/
+
+# Include compiled output in package
+!dist/

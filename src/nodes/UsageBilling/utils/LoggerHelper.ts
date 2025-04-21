@@ -12,7 +12,7 @@
 
 // Global debug flag to control detailed logging
 // In a production environment, this would typically be false
-export const DEBUG_ENABLED = true;
+export const DEBUG_ENABLED = false;
 
 // Standard log prefix for easy identification in console
 const LOG_PREFIX = '[UsageBilling]';

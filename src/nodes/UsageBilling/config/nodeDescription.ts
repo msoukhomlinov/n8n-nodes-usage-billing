@@ -6,6 +6,7 @@ export const nodeDescription: INodeTypeDescription = {
   name: 'usageBilling',
   icon: 'file:usageBilling.svg',
   group: ['transform'],
+  usableAsTool: true,
   codex: {
     categories: ['Finance'],
     resources: {

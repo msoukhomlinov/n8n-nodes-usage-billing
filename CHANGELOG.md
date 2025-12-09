@@ -2,6 +2,12 @@
 
 All notable changes to the n8n-nodes-usage-billing node will be documented in this file.
 
+## [0.3.2] - 2025-12-09
+
+### Fixes
+- Match Usage and Calculate now correctly prefers customer-specific price rows when `Pricelist Contains Customer-Specific Pricing` is enabled, skipping customer-tagged rows during generic matching so the intended per-customer sell price is applied.
+
+
 ## [0.3.1] - 2025-12-09
 
 ### Fixes

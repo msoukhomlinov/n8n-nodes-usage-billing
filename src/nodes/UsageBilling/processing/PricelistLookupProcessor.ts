@@ -766,8 +766,28 @@ function findMatchingPriceRecords(
     // Regular matching logic (similar to original)
     const matchedItems: PriceListItem[] = [];
 
+    // Determine if we should skip customer-specific rows during generic matching
+    const customerSpecificEnabled = customerPricingConfig?.useCustomerSpecificPricing === true;
+    const customerIdPriceListField = customerPricingConfig?.customerIdPriceListField;
+
     // Iterate through each price list item to find matches
     for (const priceItem of priceList) {
+      // If customer-specific pricing is enabled, ignore rows that contain a customer ID
+      if (customerSpecificEnabled && customerIdPriceListField) {
+        const priceCustomerId = getPropertyCaseInsensitive(priceItem, customerIdPriceListField);
+        const hasCustomerId =
+          priceCustomerId !== undefined &&
+          priceCustomerId !== null &&
+          String(priceCustomerId).trim() !== '';
+
+        if (hasCustomerId) {
+          logger.debug(
+            `PriceList Lookup: Skipping customer-specific price item during generic matching (customer ID field "${customerIdPriceListField}")`,
+          );
+          continue;
+        }
+      }
+
       let allFieldsMatch = true;
 
       // Check each match field for this price item

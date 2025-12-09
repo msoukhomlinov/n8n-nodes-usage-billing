@@ -2,6 +2,12 @@
 
 All notable changes to the n8n-nodes-usage-billing node will be documented in this file.
 
+## [0.3.3] - 2025-12-09
+
+### Fixes
+- Match Usage and Calculate now falls back to price-list field names when a mapped usage field is missing, ensuring customer-specific rows still match when usage data already uses price-list schema.
+
+
 ## [0.3.2] - 2025-12-09
 
 ### Fixes

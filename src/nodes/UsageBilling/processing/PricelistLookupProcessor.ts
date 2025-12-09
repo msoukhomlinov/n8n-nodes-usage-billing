@@ -709,7 +709,11 @@ function findMatchingPriceRecords(
           for (const matchField of matchFields) {
             // Use case-insensitive property lookup
             const priceValue = getPropertyCaseInsensitive(priceItem, matchField.priceListField);
-            const usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
+            let usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
+            // Fallback: if usage field is missing, try the price list field name (common when usage already uses price list schema)
+            if (usageValue === undefined) {
+              usageValue = getPropertyCaseInsensitive(usageRecord, matchField.priceListField);
+            }
 
             // If either value is undefined, this item doesn't match
             if (priceValue === undefined || usageValue === undefined) {
@@ -794,7 +798,11 @@ function findMatchingPriceRecords(
       for (const matchField of matchFields) {
         // Use case-insensitive property lookup
         const priceValue = getPropertyCaseInsensitive(priceItem, matchField.priceListField);
-        const usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
+        let usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
+        // Fallback: if usage field is missing, try the price list field name (common when usage already uses price list schema)
+        if (usageValue === undefined) {
+          usageValue = getPropertyCaseInsensitive(usageRecord, matchField.priceListField);
+        }
 
         // If either value is undefined, this item doesn't match
         if (priceValue === undefined || usageValue === undefined) {

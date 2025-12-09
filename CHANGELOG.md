@@ -2,6 +2,10 @@
 
 All notable changes to the n8n-nodes-usage-billing node will be documented in this file.
 
+## [0.3.1] - 2025-12-09
+
+### Fixes
+- Output Fields parameters in Match Usage and Calculate now accept literal field names only (`Source Field` and `Target Field`), preventing expressions from being evaluated in output mappings.
 
 ## [0.3.0] - 2025-12-08
 

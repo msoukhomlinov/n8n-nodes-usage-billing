@@ -54,34 +54,7 @@ export interface UsageSummaryConfig {
 }
 
 /**
- * CSV parsing configuration
- */
-export interface CsvParsingConfig {
-  csvSource: {
-    fieldName: string;
-    delimiter: string;
-  };
-}
-
-/**
- * Column filtering configuration
- */
-export interface ColumnFilterConfig {
-  includeAllColumns: boolean;
-  includeColumnsList?: string;
-}
-
-/**
  * Column mapping interface for CSV processing
- */
-export interface ColumnMapping {
-  csvColumn: string;
-  targetField: string;
-  dataType: 'string' | 'number' | 'boolean';
-}
-
-/**
- * Field mapping pair for matching
  */
 export interface MatchFieldPair {
   priceListField: string;
@@ -125,7 +98,7 @@ export interface OutputFieldConfig {
 /**
  * The operations supported by the node
  */
-export type OperationType = 'importPricingData' | 'matchUsageAndCalculate' | 'usageSummary';
+export type OperationType = 'matchUsageAndCalculate' | 'usageSummary';
 
 /**
  * Configuration for customer-specific pricing

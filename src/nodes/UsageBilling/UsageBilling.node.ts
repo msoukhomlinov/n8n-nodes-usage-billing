@@ -2,10 +2,8 @@ import type { IExecuteFunctions } from 'n8n-workflow';
 import type { INodeExecutionData, INodeType, IDataObject } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 import { nodeDescription } from './config';
-import { importPricingData, matchUsageAndCalculate, usageSummary } from './processing';
+import { matchUsageAndCalculate, usageSummary } from './processing';
 import type {
-  CsvParsingConfig,
-  ColumnFilterConfig,
   MatchFieldPair,
   CalculationConfig,
   OutputFieldConfig,
@@ -25,24 +23,7 @@ export class UsageBilling implements INodeType {
       let returnData: INodeExecutionData[][] = [];
 
       // Handle different operations
-      if (operation === 'importPricingData') {
-        // Get configuration for Import Pricing Data operation
-        const csvParsingConfig = this.getNodeParameter('csvParsingConfig', 0) as CsvParsingConfig;
-        const columnFilterConfig = this.getNodeParameter('columnFilterConfig', 0, {
-          includeAllColumns: true,
-        }) as ColumnFilterConfig;
-
-        // Import pricing data from CSV data
-        const importResult = await importPricingData.call(
-          this,
-          items,
-          csvParsingConfig,
-          columnFilterConfig,
-        );
-
-        // Directly use the returned data which now contains both outputs
-        returnData = importResult;
-      } else if (operation === 'matchUsageAndCalculate') {
+      if (operation === 'matchUsageAndCalculate') {
         // Get configuration for Match Usage and Calculate operation
         const priceListFieldName = this.getNodeParameter('priceListFieldName', 0) as unknown;
         const usageDataFieldName = this.getNodeParameter('usageDataFieldName', 0) as unknown;
@@ -163,6 +144,7 @@ export class UsageBilling implements INodeType {
         ) as string;
         const groupByFieldsStr = this.getNodeParameter('groupByFields', 0, '') as string;
         const includeSourceData = this.getNodeParameter('includeSourceData', 0, false) as boolean;
+        const usageData = this.getNodeParameter('usageData', 0) as unknown;
 
         // Parse group by fields from comma-separated string
         const groupByFields = groupByFieldsStr
@@ -177,7 +159,7 @@ export class UsageBilling implements INodeType {
         };
 
         // Generate usage summary
-        returnData = await usageSummary.call(this, items, summaryConfig);
+        returnData = await usageSummary.call(this, items, summaryConfig, usageData);
       }
 
       return returnData;

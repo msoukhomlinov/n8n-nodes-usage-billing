@@ -1,9 +1,9 @@
 import type { IExecuteFunctions, INodeExecutionData, IDataObject } from 'n8n-workflow';
 import type { UsageSummaryConfig, UsageSummaryRecord } from '../interfaces';
 import { createStandardizedError, ErrorCode, ErrorCategory } from '../utils/errorHandling';
+import { normaliseDataInput } from '../utils/common';
 import { logger } from '../utils/LoggerHelper';
 import Decimal from 'decimal.js';
-import _ from 'lodash';
 
 /**
  * Generate a summary of all usage and cost calculations
@@ -11,30 +11,34 @@ import _ from 'lodash';
  */
 export async function generateUsageSummary(
   this: IExecuteFunctions,
-  items: INodeExecutionData[],
+  _items: INodeExecutionData[],
   config: UsageSummaryConfig,
+  usageDataInput: unknown,
 ): Promise<INodeExecutionData[][]> {
   const successOutput: INodeExecutionData[] = [];
   const errorOutput: INodeExecutionData[] = [];
 
   try {
     logger.info('Usage Summary: Starting summary generation process');
-    logger.debug(`Usage Summary: Received ${items.length} items for processing`);
+
+    const usageRecords = normaliseDataInput<IDataObject>(usageDataInput);
+    logger.debug(`Usage Summary: Resolved ${usageRecords.length} usage records for processing`);
     logger.debug(
       `Usage Summary: Configuration - Fields to total: ${config.fieldsToTotal}, Group by: ${config.groupByFields ? config.groupByFields.join(', ') : 'None'}`,
     );
 
     // Basic input validation
-    if (items.length === 0 || !items[0]?.json) {
-      logger.warn('Usage Summary: No input data found for usage summary');
+    if (!usageRecords || usageRecords.length === 0) {
+      logger.warn('Usage Summary: Usage data is empty or invalid');
       const error = createStandardizedError(
         ErrorCode.EMPTY_DATASET,
-        'No input data found for usage summary',
+        'Usage data is empty or invalid for usage summary',
         ErrorCategory.INPUT_ERROR,
         {
           suggestions: [
-            'Ensure there is input data connected to this node',
-            'Check previous nodes in the workflow to make sure they are sending data',
+            'Ensure the Usage Data parameter resolves to an object or array',
+            'Check the expression for Usage Data (e.g., {{ $(\'Match Usage and Calculate\').all() }})',
+            'Provide valid JSON or a data expression that returns records to summarise',
           ],
         },
       );
@@ -63,13 +67,13 @@ export async function generateUsageSummary(
       logger.info(
         `Usage Summary: Generating grouped summaries using fields: ${config.groupByFields.join(', ')}`,
       );
-      const groupedSummaries = generateGroupedSummaries(items, config);
+      const groupedSummaries = generateGroupedSummaries(usageRecords, config);
       logger.info(`Usage Summary: Generated ${groupedSummaries.length} grouped summaries`);
       successOutput.push(...groupedSummaries);
     } else {
       // Generate a single summary for all records
       logger.info('Usage Summary: Generating a single summary for all records');
-      const summary = generateSingleSummary(items, config);
+      const summary = generateSingleSummary(usageRecords, config);
       successOutput.push(summary);
     }
 
@@ -97,12 +101,12 @@ export async function generateUsageSummary(
  * Generate a single summary record for all items
  */
 function generateSingleSummary(
-  items: INodeExecutionData[],
+  records: IDataObject[],
   config: UsageSummaryConfig,
 ): INodeExecutionData {
   try {
     logger.debug('Usage Summary: Generating single summary');
-    const recordsProcessed = items.filter((item) => !!item?.json).length;
+    const recordsProcessed = records.length;
     const sourceData: IDataObject[] = [];
 
     // Parse fields to total
@@ -116,17 +120,15 @@ function generateSingleSummary(
     }
 
     // Process each item
-    for (const item of items) {
-      if (!item?.json) continue;
-
+    for (const record of records) {
       // Store source data if requested
       if (config.includeSourceData) {
-        sourceData.push(item.json as IDataObject);
+        sourceData.push(record);
       }
 
       // Process each field to total
       for (const field of fieldsToTotal) {
-        const value = getNumberValue(item.json, field);
+        const value = getNumberValue(record, field);
         if (value !== undefined) {
           totals[field] = totals[field].plus(value);
         }
@@ -166,7 +168,7 @@ function generateSingleSummary(
  * Generate grouped summaries based on specified fields
  */
 function generateGroupedSummaries(
-  items: INodeExecutionData[],
+  records: IDataObject[],
   config: UsageSummaryConfig,
 ): INodeExecutionData[] {
   try {
@@ -181,15 +183,13 @@ function generateGroupedSummaries(
     }
 
     // Group records based on groupByFields
-    const groups: { [key: string]: INodeExecutionData[] } = {};
+    const groups: { [key: string]: IDataObject[] } = {};
 
-    for (const item of items) {
-      if (!item?.json) continue;
-
+    for (const record of records) {
       // Generate group key based on groupByFields
       const groupValues: string[] = [];
       for (const field of config.groupByFields) {
-        groupValues.push(String(item.json[field] || 'undefined'));
+        groupValues.push(String(record[field] ?? 'undefined'));
       }
 
       const groupKey = groupValues.join('::');
@@ -198,7 +198,7 @@ function generateGroupedSummaries(
         groups[groupKey] = [];
       }
 
-      groups[groupKey].push(item);
+      groups[groupKey].push(record);
     }
 
     logger.debug(`Usage Summary: Found ${Object.keys(groups).length} distinct groups to summarize`);

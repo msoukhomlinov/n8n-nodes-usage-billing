@@ -28,47 +28,79 @@ export function getPropertyCaseInsensitive(obj: Record<string, unknown>, key: st
 }
 
 /**
- * Generic function to extract and normalize data from various input sources
- * Used to handle both price list and usage data extraction with the same pattern
+ * Normalise data that may be provided as:
+ * - String path to look up on a fallback object
+ * - JSON string representing an object or array
+ * - Direct object or array (e.g. from an expression)
  */
-export function extractAndNormalizeData<T>(
-  inputData: IDataObject,
-  fieldPath: string | unknown,
-): T[] {
-  let data: unknown;
+export function normaliseDataInput<T>(input: unknown, fallbackData?: IDataObject): T[] {
+  let data = input;
 
-  // Handle different ways data can be provided
-  if (typeof fieldPath === 'string' && fieldPath.trim().length > 0) {
-    // If fieldPath is a string, treat it as a path to look up in the inputData
-    data = _.get(inputData, fieldPath);
-  } else {
-    // If fieldPath is not a string or empty, it's likely the actual data
-    data = fieldPath;
+  // When input is blank string or undefined, fall back to provided data
+  if ((typeof data === 'string' && data.trim() === '') || data === undefined) {
+    data = fallbackData;
   }
 
-  // Handle case where the data might be a string (JSON)
+  // If input is a string, decide whether it's JSON or a path
   if (typeof data === 'string') {
-    try {
-      // Try to parse it if it's a JSON string
-      data = JSON.parse(data);
-    } catch (e) {
-      // If not valid JSON, create empty array
-      data = [];
-    }
-  }
+    const trimmed = data.trim();
+    const looksJson =
+      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'));
 
-  // Ensure data is an array
-  if (!Array.isArray(data)) {
-    // If it's an object but not an array, wrap it in an array
-    if (typeof data === 'object' && data !== null) {
-      data = [data];
+    if (looksJson) {
+      try {
+        data = JSON.parse(trimmed);
+      } catch {
+        data = [];
+      }
+    } else if (fallbackData) {
+      data = _.get(fallbackData, trimmed);
     } else {
-      // Create an empty array if it's neither an object nor array
       data = [];
     }
   }
 
-  return data as T[];
+  // If we have an object, check for an embedded array property (common when data is wrapped)
+  if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+    const arrayProps = Object.keys(data).filter((key) =>
+      Array.isArray((data as IDataObject)[key]),
+    );
+
+    if (arrayProps.length > 0) {
+      const preferredPropNames = [
+        'priceList',
+        'pricelist',
+        'prices',
+        'items',
+        'records',
+        'data',
+        'usage',
+        'usageData',
+        'usageItems',
+      ];
+
+      const preferredMatch = arrayProps.find((prop) =>
+        preferredPropNames.some((name) => prop.toLowerCase().includes(name.toLowerCase())),
+      );
+
+      const selectedProp = preferredMatch ?? arrayProps[0];
+      data = (data as IDataObject)[selectedProp];
+    }
+  }
+
+  // Arrays are returned as-is
+  if (Array.isArray(data)) {
+    return data as T[];
+  }
+
+  // Wrap single objects
+  if (typeof data === 'object' && data !== null) {
+    return [data as T];
+  }
+
+  // Anything else becomes empty
+  return [];
 }
 
 /**

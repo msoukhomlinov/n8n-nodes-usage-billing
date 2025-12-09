@@ -42,12 +42,6 @@ export const nodeDescription: INodeTypeDescription = {
       noDataExpression: true,
       options: [
         {
-          name: 'Import Pricing Data',
-          value: 'importPricingData',
-          description: 'Import and transform pricing data from CSV to JSON format',
-          action: 'Import and transform pricing data',
-        },
-        {
           name: 'Match Usage and Calculate',
           value: 'matchUsageAndCalculate',
           description: 'Match usage data object against price list object and calculate billing.',
@@ -60,111 +54,7 @@ export const nodeDescription: INodeTypeDescription = {
           action: 'Generate a summary of costs from matched records',
         },
       ],
-      default: 'importPricingData',
-    },
-
-    // Import Pricing Data Operation - CSV Parsing Configuration
-    {
-      displayName: 'CSV Parsing Configuration',
-      name: 'csvParsingConfig',
-      type: 'fixedCollection',
-      default: {},
-      displayOptions: {
-        show: {
-          operation: ['importPricingData'],
-        },
-      },
-      options: [
-        {
-          name: 'csvSource',
-          displayName: 'CSV Source Data',
-          values: [
-            {
-              displayName: 'Input Data Property Name',
-              name: 'fieldName',
-              type: 'string',
-              default: '',
-              placeholder: 'csvdata',
-              description:
-                'The name of the field containing CSV data (e.g., csvdata, data, or rawCsv)',
-              required: true,
-            },
-            {
-              displayName: 'Delimiter',
-              name: 'delimiter',
-              type: 'options',
-              options: [
-                {
-                  name: 'Auto-detect',
-                  value: 'auto',
-                  description:
-                    'Automatically detect the delimiter (works best with standard formats)',
-                },
-                {
-                  name: 'Comma (,)',
-                  value: ',',
-                  description: 'Standard CSV delimiter',
-                },
-                {
-                  name: 'Semicolon (;)',
-                  value: ';',
-                  description: 'Common in European locales',
-                },
-                {
-                  name: 'Tab',
-                  value: 'tab',
-                  description: 'Tab-separated values (TSV)',
-                },
-                {
-                  name: 'Pipe (|)',
-                  value: '|',
-                  description: 'Pipe-separated values',
-                },
-              ],
-              default: 'auto',
-              description: 'The character used to separate values in the CSV',
-            },
-          ],
-        },
-      ],
-    },
-
-    // Column Filtering Configuration for Import Pricing Data
-    {
-      displayName: 'Column Filtering Options',
-      name: 'columnFilterConfig',
-      type: 'collection',
-      placeholder: 'Add Field',
-      default: {
-        includeAllColumns: true,
-      },
-      displayOptions: {
-        show: {
-          operation: ['importPricingData'],
-        },
-      },
-      options: [
-        {
-          displayName: 'Include All Columns',
-          name: 'includeAllColumns',
-          type: 'boolean',
-          default: true,
-          description: 'Whether to include all columns from the CSV data in the output',
-        },
-        {
-          displayName: 'Columns to Include',
-          name: 'includeColumnsList',
-          type: 'string',
-          default: '',
-          description:
-            'Comma-separated list of column names to include (only used if Include All Columns is false)',
-          displayOptions: {
-            show: {
-              includeAllColumns: [false],
-            },
-          },
-        },
-      ],
+      default: 'matchUsageAndCalculate',
     },
 
     // Match Usage and Calculate Configuration
@@ -174,7 +64,8 @@ export const nodeDescription: INodeTypeDescription = {
       type: 'string',
       placeholder: 'priceList',
       default: '',
-      description: 'The field containing the price list data (must be provided as a single item)',
+      description:
+        'Field name or expression that resolves to the price list array. Examples: priceList, data.prices, or {{ $(\'Import Pricing\').all() }}. The value is evaluated once and reused for all matches.',
       required: true,
       displayOptions: {
         show: {
@@ -189,7 +80,7 @@ export const nodeDescription: INodeTypeDescription = {
       placeholder: 'usageData',
       default: '',
       description:
-        'The field containing usage data (must be provided as an object with one or more items)',
+        'Field name or expression that resolves to usage records. Examples: usageItems, data.usage, or {{ $(\'Usage Source\').all() }}. Accepts arrays or single objects.',
       required: true,
       displayOptions: {
         show: {
@@ -229,6 +120,7 @@ export const nodeDescription: INodeTypeDescription = {
               displayName: 'Price List Field',
               name: 'priceListField',
               type: 'string',
+              noDataExpression: true,
               default: '',
               placeholder: 'product_id',
               description: 'Field name in the price list data to match on',
@@ -238,6 +130,7 @@ export const nodeDescription: INodeTypeDescription = {
               displayName: 'Usage Field',
               name: 'usageField',
               type: 'string',
+              noDataExpression: true,
               default: '',
               placeholder: 'product_id',
               description: 'Field name in the usage data to match on',
@@ -279,9 +172,11 @@ export const nodeDescription: INodeTypeDescription = {
           displayName: 'Customer ID Field in Price List',
           name: 'customerIdPriceListField',
           type: 'string',
+          noDataExpression: true,
           default: 'customerId',
           placeholder: 'customerId',
           description: 'The field name in your price list that contains the customer identifier',
+          required: true,
           displayOptions: {
             show: {
               useCustomerSpecificPricing: [true],
@@ -292,10 +187,12 @@ export const nodeDescription: INodeTypeDescription = {
           displayName: 'Customer ID Field in Usage Data',
           name: 'customerIdUsageField',
           type: 'string',
+          noDataExpression: true,
           default: 'customerId',
           placeholder: 'customerId',
           description:
             'The field name in your usage data that contains the customer identifier to match against the price list',
+          required: true,
           displayOptions: {
             show: {
               useCustomerSpecificPricing: [true],
@@ -328,27 +225,33 @@ export const nodeDescription: INodeTypeDescription = {
           displayName: 'Quantity Field',
           name: 'quantityField',
           type: 'string',
+          noDataExpression: true,
           placeholder: 'quantity',
           default: '',
-          description: 'Field in the usage data containing the quantity value',
+          description:
+            'Literal field name in the usage data containing the quantity value; must come from usage data',
           required: false,
         },
         {
           displayName: 'Cost Price Field',
           name: 'costPriceField',
           type: 'string',
+          noDataExpression: true,
           placeholder: 'cost',
           default: '',
-          description: 'Field in the price list data containing the cost price value',
+          description:
+            'Literal field name in the price list data containing the cost price value; must come from price list data',
           required: false,
         },
         {
           displayName: 'Sell Price Field',
           name: 'sellPriceField',
           type: 'string',
+          noDataExpression: true,
           placeholder: 'price',
           default: '',
-          description: 'Field in the price list data containing the sell price value',
+          description:
+            'Literal field name in the price list data containing the sell price value; must come from price list data',
           required: false,
         },
         {
@@ -555,6 +458,21 @@ export const nodeDescription: INodeTypeDescription = {
     },
 
     // Usage Summary Configuration options
+    {
+      displayName: 'Usage Data',
+      name: 'usageData',
+      type: 'string',
+      placeholder: '{{ $(\'Match Usage and Calculate\').all() }}',
+      default: '',
+      description:
+        'Expression or JSON that resolves to the usage records to summarise. Accepts arrays or single objects.',
+      required: true,
+      displayOptions: {
+        show: {
+          operation: ['usageSummary'],
+        },
+      },
+    },
     {
       displayName: 'Fields to Total',
       name: 'fieldsToTotal',

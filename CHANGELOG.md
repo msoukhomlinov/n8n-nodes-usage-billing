@@ -2,13 +2,27 @@
 
 All notable changes to the n8n-nodes-usage-billing node will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.3.0] - 2025-12-08
+
+### Enhancements
+- Price list and usage inputs can now be provided via n8n expressions that return arrays or objects, not just string paths on the first item.
+- Normalised input handling for price list and usage data (arrays, objects, JSON strings, or field paths), reducing the need to merge data onto a specific item.
+- Validation guidance now references expression-based inputs for clearer troubleshooting.
+- Calculation Settings fields for quantity, cost price, and sell price now accept literal field names only (expressions are treated as plain text).
+- Customer-specific pricing now requires customer ID fields when enabled to avoid incomplete configuration.
+
+### Behaviour changes
+- Usage Summary now requires an explicit `Usage Data` parameter; it no longer pulls data from the immediately previous node. An error is raised when the expression resolves to no data.
+- Import Pricing Data operation removed; use standard n8n CSV/HTTP/File nodes for price list ingestion.
+- Default operation is now Match Usage and Calculate.
+
 
 ## [0.2.1] - 2025-04-27
 
 ### Enhancements
 - Added usableAsTool support
+
 
 ## [0.2.0] - 2025-04-21
 

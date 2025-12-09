@@ -24,10 +24,10 @@ import {
   getPropertyCaseInsensitive,
   addMatchFieldsToOutput,
   addExtraFieldsToOutput,
+  normaliseDataInput,
 } from '../utils/common';
 import { logger } from '../utils/LoggerHelper';
 import Decimal from 'decimal.js';
-import _ from 'lodash';
 
 // Define extended UsageRecord type containing original record and match/error details
 type ExtendedUsageRecord = {
@@ -216,7 +216,8 @@ export async function pricelistLookup(
           suggestions: [
             'Check that your price list data is properly formatted',
             'Ensure the price list contains at least one item',
-            'Verify the Price List Field Name parameter is correct',
+            'Verify the Price List Field Name parameter or expression is correct',
+            'If using an expression, ensure it resolves to an array (e.g., {{ $(\'Import Pricing\').all() }})',
           ],
         },
       );
@@ -229,48 +230,42 @@ export async function pricelistLookup(
       `PriceList Lookup: Successfully extracted price list with ${priceList.length} items`,
     );
 
-    // Process each item individually
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (!item?.json) continue;
+    // Build usage batches: either a shared expression result or per-item extraction
+    const sharedUsageData =
+      typeof usageDataFieldName === 'string'
+        ? null
+        : normaliseDataInput<UsageRecord>(usageDataFieldName);
 
-      logger.debug(`PriceList Lookup: Processing item ${i + 1}/${items.length}`);
+    const usageBatches =
+      sharedUsageData && sharedUsageData.length > 0
+        ? [{ usageData: sharedUsageData, itemIndex: 0 }]
+        : items.map((item, i) => ({
+            usageData: normaliseDataInput<UsageRecord>(usageDataFieldName, item.json),
+            itemIndex: i,
+          }));
 
-      // Default: Use the item directly as the usage record
-      // Only extract from field path if explicitly provided a string path
-      let usageData: UsageRecord[];
-      if (typeof usageDataFieldName === 'string' && usageDataFieldName.trim().length > 0) {
-        // Extract data from specific field path
-        logger.debug(
-          `PriceList Lookup: Extracting usage data from field path: ${usageDataFieldName}`,
-        );
-        usageData = extractDataFromFieldPath(item.json, usageDataFieldName);
-      } else {
-        // Use the item itself as the usage record (direct data mode)
-        logger.debug('PriceList Lookup: Using item directly as usage data');
-        usageData = [item.json as UsageRecord];
-      }
+    for (const batch of usageBatches) {
+      const usageData = batch.usageData;
 
       // Validate usage data structure
       const usageDataValidation = validateUsageDataStructure(usageData);
       if (!usageDataValidation.valid && usageDataValidation.error) {
-        logger.warn(`PriceList Lookup: Invalid usage data structure in item ${i}`);
+        logger.warn(`PriceList Lookup: Invalid usage data structure in item ${batch.itemIndex}`);
         errorRecords.push({
           json: {
             error: usageDataValidation.error,
-            itemIndex: i,
+            itemIndex: batch.itemIndex,
           },
         });
-        continue; // Skip this item and process the next one
+        continue; // Skip this batch and process the next one
       }
 
       logger.info(
-        `PriceList Lookup: Processing ${usageData.length} usage records for item ${i + 1}`,
+        `PriceList Lookup: Processing ${usageData.length} usage records for item ${batch.itemIndex + 1}`,
       );
 
-      // Process each usage record for this item against the shared price list
+      // Process each usage record for this batch against the shared price list
       const matchedRecords: CalculatedRecord[] = [];
-      const unmatchedRecords: ExtendedUsageRecord[] = [];
 
       for (const usageRecord of usageData) {
         // Find matching price records with enhanced function
@@ -309,9 +304,6 @@ export async function pricelistLookup(
             if (typeof customerId === 'string' || typeof customerId === 'number') {
               calculated.customerId = customerId;
             }
-          } else {
-            // These fields will already have default values from calculateAmount
-            // No need to set them explicitly here
           }
 
           matchedRecords.push(calculated);
@@ -451,9 +443,8 @@ export async function pricelistLookup(
         }
       }
 
-      // Add this item's results to the overall collections
-      allMatchedRecords.push(...matchedRecords); // Collect matched records from this item
-      // allUnmatchedRecords.push(...unmatchedRecords); // Already done inside loop
+      // Add this batch's results to the overall collections
+      allMatchedRecords.push(...matchedRecords); // Collect matched records
     }
 
     // Create standardized errors for unmatched records if any
@@ -640,112 +631,12 @@ function extractPriceListData(
   try {
     logger.debug('PriceList Lookup: Extracting price list data');
 
-    let priceList: PriceListItem[];
-
-    // Check if fieldName is directly an array of price list items
-    if (Array.isArray(fieldName)) {
-      return fieldName as PriceListItem[];
-    }
-
-    // If fieldName is not a string or is empty, use the input data directly
-    if (typeof fieldName !== 'string' || fieldName.trim() === '') {
-      // Check if input is array (common case)
-      if (Array.isArray(inputData)) {
-        return inputData as PriceListItem[];
-      }
-
-      // If not array, use the input directly as a single item price list
-      return [inputData as PriceListItem];
-    }
-
-    // Extract data from specified field path (normal operation)
-    priceList = _.get(inputData, fieldName) as PriceListItem[];
-
-    // If not an array, check if it's an object with a price list property
-    if (!Array.isArray(priceList) && typeof priceList === 'object' && priceList !== null) {
-      // Try to find a property that might contain the price list
-      const possibleProps = Object.keys(priceList).filter((key) =>
-        Array.isArray((priceList as unknown as IDataObject)[key]),
-      );
-
-      if (possibleProps.length === 1) {
-        // Use the first array property found
-        priceList = (priceList as IDataObject)[possibleProps[0]] as PriceListItem[];
-      } else if (possibleProps.length > 1) {
-        // If multiple array properties, prefer ones with more standard names
-        const preferredPropNames = ['priceList', 'pricelist', 'prices', 'items', 'records', 'data'];
-        const matchedProp = possibleProps.find((prop) =>
-          preferredPropNames.some((name) => prop.toLowerCase().includes(name.toLowerCase())),
-        );
-
-        if (matchedProp) {
-          priceList = (priceList as IDataObject)[matchedProp] as PriceListItem[];
-        } else {
-          // If no preferred property found, use the first array property
-          priceList = (priceList as IDataObject)[possibleProps[0]] as PriceListItem[];
-        }
-      }
-    }
-
-    // Ensure the result is an array
-    if (!Array.isArray(priceList)) {
-      // If not an array, convert to an array with the object as a single item
-      priceList = priceList ? [priceList as unknown as PriceListItem] : [];
-    }
+    const priceList = normaliseDataInput<PriceListItem>(fieldName, inputData);
 
     return priceList;
   } catch (error) {
     logger.error(
       `PriceList Lookup: Error extracting price list data: ${(error as Error).message}`,
-      error as Error,
-    );
-    throw error;
-  }
-}
-
-/**
- * Extract usage data from a field path in the input data
- */
-function extractDataFromFieldPath(inputData: IDataObject, fieldPath: string): UsageRecord[] {
-  try {
-    logger.debug(`PriceList Lookup: Extracting usage data from field path: ${fieldPath}`);
-
-    if (!fieldPath.trim()) {
-      // If no field path specified, assume the input data itself is the usage record
-      return [inputData as UsageRecord];
-    }
-
-    // Get the field value
-    const fieldValue = getPropertyCaseInsensitive(inputData, fieldPath);
-    if (fieldValue === undefined) {
-      throw new Error(`Usage data field "${fieldPath}" not found in input data`);
-    }
-
-    // Convert to array if it's an object (but not an array)
-    if (typeof fieldValue === 'object' && fieldValue !== null && !Array.isArray(fieldValue)) {
-      // Convert object to array of records
-      const records: UsageRecord[] = [];
-      for (const key in fieldValue as Record<string, unknown>) {
-        if (Object.prototype.hasOwnProperty.call(fieldValue, key)) {
-          const record = (fieldValue as Record<string, unknown>)[key];
-          if (typeof record === 'object' && record !== null) {
-            records.push(record as UsageRecord);
-          }
-        }
-      }
-      return records;
-    }
-
-    // If it's already an array, return as is
-    if (Array.isArray(fieldValue)) {
-      return fieldValue as UsageRecord[];
-    }
-
-    // If it's a single value, wrap in array
-    return [fieldValue as UsageRecord];
-  } catch (error) {
-    logger.error(
-      `PriceList Lookup: Error extracting usage data: ${(error as Error).message}`,
       error as Error,
     );
     throw error;

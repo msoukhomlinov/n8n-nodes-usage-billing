@@ -1,16 +1,8 @@
 import { NodeOperationError } from 'n8n-workflow';
-import type {
-  CsvParsingConfig,
-  ColumnFilterConfig,
-  CalculationConfig,
-  MatchFieldPair,
-  OutputFieldConfig,
-} from '../interfaces';
+import type { CalculationConfig, MatchFieldPair, OutputFieldConfig } from '../interfaces';
 
 // Configuration type for error context
 export interface ErrorConfig {
-  csvParsingConfig?: CsvParsingConfig;
-  columnFilterConfig?: ColumnFilterConfig;
   calculationConfig?: CalculationConfig;
   matchFields?: MatchFieldPair[];
   outputConfig?: OutputFieldConfig;
@@ -28,8 +20,6 @@ export enum ErrorCategory {
 // Error codes
 export enum ErrorCode {
   // Input errors
-  MISSING_CSV_DATA = 'MISSING_CSV_DATA',
-  INVALID_CSV_FORMAT = 'INVALID_CSV_FORMAT',
   INVALID_FIELD_NAME = 'INVALID_FIELD_NAME',
 
   // Processing errors
@@ -115,67 +105,6 @@ export function createStandardizedError(
 export function handleError(error: Error, config?: ErrorConfig): StandardizedError {
   // NodeOperationError from n8n is a special case
   if (error instanceof NodeOperationError) {
-    // Handle specific error messages
-    if (error.message.includes('CSV data is missing or invalid')) {
-      const fieldName = error.message.match(/field "([^"]+)"/)?.[1] || '';
-
-      return createStandardizedError(
-        ErrorCode.MISSING_CSV_DATA,
-        'Could not find CSV data in the specified field',
-        ErrorCategory.INPUT_ERROR,
-        {
-          context: {
-            fieldName,
-            configuration: config,
-          },
-          suggestions: [
-            `Check that the field "${fieldName}" exists in your input data`,
-            'If the field name has spaces, ensure it matches exactly as shown in your data',
-            'Try using a different field name that contains your CSV data',
-            'Check if your incoming data actually contains CSV content',
-          ],
-          error,
-          includeDebug: true,
-        },
-      );
-    }
-
-    if (error.message.includes('No data rows found in CSV')) {
-      return createStandardizedError(
-        ErrorCode.EMPTY_DATASET,
-        'The CSV data was found but contains no data rows',
-        ErrorCategory.DATA_ERROR,
-        {
-          context: { configuration: config },
-          suggestions: [
-            'Verify your CSV data contains valid content',
-            'Check that your CSV has at least one data row (not just headers)',
-            'Ensure the delimiter setting matches your CSV format',
-          ],
-          error,
-          includeDebug: true,
-        },
-      );
-    }
-
-    if (error.message.includes('Failed to parse CSV data')) {
-      return createStandardizedError(
-        ErrorCode.PARSING_ERROR,
-        'Could not parse the CSV data',
-        ErrorCategory.PROCESSING_ERROR,
-        {
-          context: { configuration: config },
-          suggestions: [
-            'Check your CSV format for errors',
-            'Verify the delimiter setting matches your CSV format',
-            'Ensure your CSV has consistent columns across all rows',
-          ],
-          error,
-          includeDebug: true,
-        },
-      );
-    }
-
     // Handle other node operation errors
     return createStandardizedError(
       ErrorCode.PARSING_ERROR,

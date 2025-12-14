@@ -4,7 +4,7 @@ import { NodeConnectionType } from 'n8n-workflow';
 export const nodeDescription: INodeTypeDescription = {
   displayName: 'Usage Billing',
   name: 'usageBilling',
-  icon: 'file:usageBilling.svg',
+  icon: 'file:usagebilling.svg',
   group: ['transform'],
   usableAsTool: true,
   codex: {

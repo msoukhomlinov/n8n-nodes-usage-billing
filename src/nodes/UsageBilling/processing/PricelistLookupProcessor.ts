@@ -25,6 +25,7 @@ import {
   addMatchFieldsToOutput,
   addExtraFieldsToOutput,
   normaliseDataInput,
+  sortObjectKeysAlphabetically,
 } from '../utils/common';
 import { logger } from '../utils/LoggerHelper';
 import Decimal from 'decimal.js';
@@ -949,7 +950,8 @@ function calculateAmount(
     // Add any additional configured output fields
     addExtraFieldsToOutput(outputRecord, priceRecord, usageRecord, outputConfig);
 
-    return outputRecord;
+    // Sort all fields alphabetically for consistent output ordering
+    return sortObjectKeysAlphabetically(outputRecord);
   } catch (error) {
     logger.error(
       `PriceList Lookup: Error calculating amounts: ${(error as Error).message}`,

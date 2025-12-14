@@ -2,6 +2,11 @@
 
 All notable changes to the n8n-nodes-usage-billing node will be documented in this file.
 
+## [0.4.1] - 2025-12-14
+
+### Fixes
+- Output fields in Match Usage and Calculate operation are now sorted alphabetically, ensuring consistent field ordering regardless of when fields are added (match fields, calculation fields, or additional output fields).
+
 ## [0.4.0] - 2025-12-14
 
 ### Enhancements

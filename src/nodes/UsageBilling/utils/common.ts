@@ -187,3 +187,18 @@ export function addExtraFieldsToOutput(
     }
   }
 }
+
+/**
+ * Sort object keys alphabetically (case-insensitive) and return a new object
+ * This ensures consistent field ordering in output records
+ */
+export function sortObjectKeysAlphabetically(record: CalculatedRecord): CalculatedRecord {
+  const sortedRecord: CalculatedRecord = {};
+  const keys = Object.keys(record).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+  for (const key of keys) {
+    sortedRecord[key] = record[key];
+  }
+
+  return sortedRecord;
+}

@@ -82,6 +82,8 @@ export interface OutputFieldConfig {
     targetField: string;
     source: 'pricelist' | 'usage';
   }>;
+  // Automatic field inclusion mode
+  automatic?: boolean;
   // New fields for automatic inclusion
   includeMatchPricelistFields?: boolean;
   includeMatchUsageFields?: boolean;

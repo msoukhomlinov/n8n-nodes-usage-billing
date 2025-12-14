@@ -401,12 +401,13 @@ export const nodeDescription: INodeTypeDescription = {
     {
       displayName: 'Output Fields',
       name: 'outputConfig',
-      type: 'fixedCollection',
-      typeOptions: {
-        multipleValues: true,
+      type: 'collection',
+      placeholder: 'Add Output Field Configuration',
+      default: {
+        automatic: false,
+        pricelistFieldPrefix: 'price_',
+        usageFieldPrefix: 'usage_',
       },
-      placeholder: 'Add Output Field',
-      default: {},
       displayOptions: {
         show: {
           operation: ['matchUsageAndCalculate'],
@@ -414,49 +415,104 @@ export const nodeDescription: INodeTypeDescription = {
       },
       options: [
         {
+          displayName: 'Automatic Field Inclusion',
+          name: 'automatic',
+          type: 'boolean',
+          default: false,
+          description:
+            'When enabled, automatically includes all fields from both pricelist and usage data with configured prefixes. When disabled, manually specify which fields to include.',
+        },
+        {
+          displayName: 'Pricelist Field Prefix',
+          name: 'pricelistFieldPrefix',
+          type: 'string',
+          default: 'price_',
+          required: true,
+          description:
+            'Prefix to add to all pricelist field names in output (required when automatic mode is enabled)',
+          displayOptions: {
+            show: {
+              automatic: [true],
+            },
+          },
+        },
+        {
+          displayName: 'Usage Field Prefix',
+          name: 'usageFieldPrefix',
+          type: 'string',
+          default: 'usage_',
+          required: true,
+          description:
+            'Prefix to add to all usage field names in output (required when automatic mode is enabled)',
+          displayOptions: {
+            show: {
+              automatic: [true],
+            },
+          },
+        },
+        {
+          displayName: 'Manual Fields',
           name: 'includeFields',
-          displayName: 'Field to Include',
-          values: [
+          type: 'fixedCollection',
+          typeOptions: {
+            multipleValues: true,
+          },
+          placeholder: 'Add Output Field',
+          default: {},
+          description:
+            'Manually specify fields to include in the output (only used when automatic mode is disabled)',
+          displayOptions: {
+            show: {
+              automatic: [false],
+            },
+          },
+          options: [
             {
-              displayName: 'Source',
-              name: 'source',
-              type: 'options',
-              options: [
+              name: 'includeFields',
+              displayName: 'Field to Include',
+              values: [
                 {
-                  name: 'Price List',
-                  value: 'pricelist',
+                  displayName: 'Source',
+                  name: 'source',
+                  type: 'options',
+                  options: [
+                    {
+                      name: 'Price List',
+                      value: 'pricelist',
+                    },
+                    {
+                      name: 'Usage Data',
+                      value: 'usage',
+                    },
+                  ],
+                  default: 'pricelist',
+                  description: 'Where to get the field from',
                 },
                 {
-                  name: 'Usage Data',
-                  value: 'usage',
+                  displayName: 'Source Field',
+                  name: 'sourceField',
+                  type: 'string',
+                  noDataExpression: true,
+                  default: '',
+                  description: 'Literal field name in the source data',
+                  required: true,
+                },
+                {
+                  displayName: 'Target Field',
+                  name: 'targetField',
+                  type: 'string',
+                  noDataExpression: true,
+                  default: '',
+                  description:
+                    'Literal name to use in the output data (leave empty to reuse source name; expressions not allowed)',
                 },
               ],
-              default: 'pricelist',
-              description: 'Where to get the field from',
-            },
-            {
-              displayName: 'Source Field',
-              name: 'sourceField',
-              type: 'string',
-              noDataExpression: true,
-              default: '',
-              description: 'Literal field name in the source data',
-              required: true,
-            },
-            {
-              displayName: 'Target Field',
-              name: 'targetField',
-              type: 'string',
-              noDataExpression: true,
-              default: '',
-              description:
-                'Literal name to use in the output data (leave empty to reuse source name; expressions not allowed)',
             },
           ],
         },
       ],
       description:
-        'Additional fields to include in the output records. Note: All matched fields, quantity field, cost and sell price fields, and calculated totals are automatically included.',
+        'Configure which additional fields to include in the output records. Use automatic mode to include all fields with prefixes, or manual mode to specify individual fields. Note: All matched fields, quantity field, cost and sell price fields, and calculated totals are automatically included.',
     },
 
     // Usage Summary Configuration options

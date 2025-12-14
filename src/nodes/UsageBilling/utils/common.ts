@@ -137,6 +137,39 @@ export function addExtraFieldsToOutput(
   usageRecord: UsageRecord,
   outputConfig: OutputFieldConfig,
 ): void {
+  // Automatic mode: add all fields from both pricelist and usage with prefixes
+  if (outputConfig.automatic === true) {
+    const pricelistPrefix = outputConfig.pricelistFieldPrefix || 'price_';
+    const usagePrefix = outputConfig.usageFieldPrefix || 'usage_';
+
+    // Get all fields from pricelist record
+    for (const key of Object.keys(priceRecord)) {
+      const value = priceRecord[key];
+      if (value !== undefined) {
+        const targetField = `${pricelistPrefix}${key}`;
+        // Only add if not already present (to avoid overwriting calculated values)
+        if (!(targetField in outputRecord)) {
+          outputRecord[targetField] = value;
+        }
+      }
+    }
+
+    // Get all fields from usage record
+    for (const key of Object.keys(usageRecord)) {
+      const value = usageRecord[key];
+      if (value !== undefined) {
+        const targetField = `${usagePrefix}${key}`;
+        // Only add if not already present (to avoid overwriting calculated values)
+        if (!(targetField in outputRecord)) {
+          outputRecord[targetField] = value;
+        }
+      }
+    }
+
+    return;
+  }
+
+  // Manual mode: use the configured field mappings
   if (!outputConfig.includeFields || outputConfig.includeFields.length === 0) return;
 
   for (const fieldMapping of outputConfig.includeFields) {

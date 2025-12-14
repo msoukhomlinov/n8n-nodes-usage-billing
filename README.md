@@ -20,34 +20,27 @@ This n8n community node provides usage-based billing calculation functionality. 
 
 ## Features
 
-- **CSV Price List Import**: Convert CSV price lists to structured JSON data
 - **Flexible Usage Matching**: Match usage data to price list items using multiple fields
 - **Customer-Specific Pricing**: Support for customer-specific pricing rules
 - **Calculation Options**: Configure rounding and decimal precision
-- **Output Customization**: Control which fields appear in the output
+- **Output Customization**: Control which fields appear in the output with automatic or manual field inclusion
 - **Usage Summarization**: Generate summaries by grouping and totaling fields
 
 ## Operations
 
-The node provides three main operations:
-
-### Import Pricing Data
-
-Convert CSV pricing data to structured JSON:
-
-1. Provide CSV data in an input field
-2. Configure CSV parsing settings (delimiter, field mappings)
-3. Get structured price list as JSON output
+The node provides two main operations:
 
 ### Match Usage and Calculate
 
 Match usage data with pricing records and calculate costs:
 
-1. Provide price list and usage data in specified fields
+1. Provide price list and usage data in specified fields (supports expressions that return arrays or objects)
 2. Configure match fields (productId, region, etc.)
 3. Configure calculation options (quantity field, price fields, rounding)
 4. Configure customer-specific pricing (if needed)
-5. Configure output field options
+5. Configure output field options:
+   - **Automatic mode**: Automatically include all fields from both pricelist and usage data with configurable prefixes (default: `price_` and `usage_`)
+   - **Manual mode**: Manually specify which fields to include with custom source and target field names
 6. Get calculated billing records as output, with unmatched records in a separate output
 
 ### Usage Summary
@@ -61,19 +54,17 @@ Generate summaries of usage and costs:
 
 ## Configuration Options
 
-### Import Pricing Data Configuration
-
-- **CSV Parsing Configuration**: Field name containing CSV, delimiter options
-- **Column Filtering Options**: Include all columns or specify columns to include
-
 ### Match Usage and Calculate Configuration
 
-- **Price List Field**: Field containing price list data
-- **Usage Data Field**: Field containing usage data
-- **Match Fields**: Field pairs to match between price list and usage data
-- **Calculation Configuration**: Fields and options for calculation
-- **Customer-Specific Pricing**: Options for customer-specific price entries
-- **Output Fields Configuration**: Control which fields to include in output
+- **Price List Field**: Field or expression containing price list data (supports arrays, objects, JSON strings, or field paths)
+- **Usage Data Field**: Field or expression containing usage data (supports arrays, objects, JSON strings, or field paths)
+- **Match Fields**: Field pairs to match between price list and usage data (at least one pair required)
+- **Calculation Configuration**: Fields and options for calculation (quantity, cost price, sell price, rounding)
+- **Customer-Specific Pricing**: Options for customer-specific price entries with customer ID matching
+- **Output Field Configuration**: Automatic inclusion settings for match fields, calculation fields, and field prefixes
+- **Output Fields**: Control which additional fields to include in output:
+  - **Automatic Mode**: Automatically includes all fields from both pricelist and usage data with required prefixes
+  - **Manual Mode**: Manually specify individual fields with source and target field names
 
 ### Usage Summary Configuration
 

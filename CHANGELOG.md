@@ -2,6 +2,12 @@
 
 All notable changes to the n8n-nodes-usage-billing node will be documented in this file.
 
+## [0.4.0] - 2025-12-14
+
+### Enhancements
+- Added automatic field inclusion mode to Output Fields in Match Usage and Calculate operation. When enabled, all fields from both pricelist and usage data are automatically included with configurable prefixes (default: `price_` and `usage_`). Manual mode remains available for selective field inclusion.
+
+
 ## [0.3.3] - 2025-12-09
 
 ### Fixes

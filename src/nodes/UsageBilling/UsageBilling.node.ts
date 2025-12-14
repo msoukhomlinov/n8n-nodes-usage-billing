@@ -97,31 +97,50 @@ export class UsageBilling implements INodeType {
         }) as IDataObject;
 
         // Get output configuration
-        const outputConfigParam = this.getNodeParameter('outputConfig', 0, {}) as IDataObject;
+        const outputConfigParam = this.getNodeParameter('outputConfig', 0, {
+          automatic: false,
+          pricelistFieldPrefix: 'price_',
+          usageFieldPrefix: 'usage_',
+        }) as IDataObject;
         const outputConfig: OutputFieldConfig = {
           includeFields: [],
+          // Automatic mode flag
+          automatic: (outputConfigParam.automatic as boolean) || false,
           // Add the automatic inclusion settings
           includeMatchPricelistFields:
             outputFieldsConfigParam.includeMatchPricelistFields as boolean,
           includeMatchUsageFields: outputFieldsConfigParam.includeMatchUsageFields as boolean,
           includeCalculationFields: outputFieldsConfigParam.includeCalculationFields as boolean,
-          // Add field prefix settings
-          pricelistFieldPrefix: outputFieldsConfigParam.pricelistFieldPrefix as string,
-          usageFieldPrefix: outputFieldsConfigParam.usageFieldPrefix as string,
+          // Add field prefix settings (from outputConfig for automatic mode, from outputFieldsConfig for match fields)
+          pricelistFieldPrefix:
+            (outputConfigParam.pricelistFieldPrefix as string) ||
+            (outputFieldsConfigParam.pricelistFieldPrefix as string) ||
+            'price_',
+          usageFieldPrefix:
+            (outputConfigParam.usageFieldPrefix as string) ||
+            (outputFieldsConfigParam.usageFieldPrefix as string) ||
+            'usage_',
           calculationFieldPrefix: outputFieldsConfigParam.calculationFieldPrefix as string,
           // Add calculated amount field names
           calculatedCostAmountField: outputFieldsConfigParam.calculatedCostAmountField as string,
           calculatedSellAmountField: outputFieldsConfigParam.calculatedSellAmountField as string,
         };
 
-        // Extract output fields from the parameter
-        if (outputConfigParam?.includeFields && Array.isArray(outputConfigParam.includeFields)) {
-          for (const field of outputConfigParam.includeFields as IDataObject[]) {
-            outputConfig.includeFields.push({
-              source: field.source as 'pricelist' | 'usage',
-              sourceField: field.sourceField as string,
-              targetField: (field.targetField as string) || (field.sourceField as string),
-            });
+        // Extract output fields from the parameter (only in manual mode)
+        if (
+          !outputConfig.automatic &&
+          outputConfigParam?.includeFields &&
+          typeof outputConfigParam.includeFields === 'object'
+        ) {
+          const includeFieldsParam = outputConfigParam.includeFields as IDataObject;
+          if (includeFieldsParam.includeFields && Array.isArray(includeFieldsParam.includeFields)) {
+            for (const field of includeFieldsParam.includeFields as IDataObject[]) {
+              outputConfig.includeFields.push({
+                source: field.source as 'pricelist' | 'usage',
+                sourceField: field.sourceField as string,
+                targetField: (field.targetField as string) || (field.sourceField as string),
+              });
+            }
           }
         }
 

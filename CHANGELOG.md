@@ -2,7 +2,7 @@
 
 All notable changes to the n8n-nodes-usage-billing node will be documented in this file.
 
-## [0.4.2] - 2025-12-14
+## [0.4.3] - 2025-12-14
 
 ### Fixes
 - Fixed case sensitivity of the icon file

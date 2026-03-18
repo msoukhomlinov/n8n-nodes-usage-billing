@@ -8,8 +8,6 @@ This n8n community node provides usage-based billing calculation functionality. 
 
 > **IMPORTANT**: When updating between versions, make sure to restart your n8n instance after the update. UI changes and new features are only picked up after a restart.
 
-This n8n community node provides usage-based billing calculation functionality. It takes usage data and price lists as inputs, performs matching and calculation, and outputs formatted billing records.
-
 [Installation](#installation)
 [Features](#features)
 [Operations](#operations)
@@ -22,6 +20,8 @@ This n8n community node provides usage-based billing calculation functionality. 
 
 - **Flexible Usage Matching**: Match usage data to price list items using multiple fields
 - **Customer-Specific Pricing**: Support for customer-specific pricing rules
+- **FX Conversion**: Convert calculated amounts to a target currency using a fixed exchange rate
+- **Minimum Sell Price Enforcement**: Prevent customer-specific sell prices from falling below the standard pricelist price
 - **Calculation Options**: Configure rounding and decimal precision
 - **Output Customization**: Control which fields appear in the output with automatic or manual field inclusion
 - **Usage Summarization**: Generate summaries by grouping and totaling fields
@@ -61,6 +61,8 @@ Generate summaries of usage and costs:
 - **Match Fields**: Field pairs to match between price list and usage data (at least one pair required)
 - **Calculation Configuration**: Fields and options for calculation (quantity, cost price, sell price, rounding)
 - **Customer-Specific Pricing**: Options for customer-specific price entries with customer ID matching
+- **FX Conversion**: Enable currency conversion with a fixed exchange rate and target currency code (e.g. USD → AUD at 1.62). Adds `calc_fxRate` and `calc_currencyCode` to output.
+- **Minimum Sell Price Enforcement**: When customer-specific pricing is active, ensures the sell price is not lower than the standard pricelist price. Adds `minSellEnforced`, `standardSellPrice`, and `originalCustomerSellPrice` to output when triggered.
 - **Output Field Configuration**: Automatic inclusion settings for match fields, calculation fields, and field prefixes
 - **Output Fields**: Control which additional fields to include in output:
   - **Automatic Mode**: Automatically includes all fields from both pricelist and usage data with required prefixes

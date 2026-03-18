@@ -9,7 +9,7 @@ import type {
   CustomerPricingConfig,
 } from '../interfaces';
 import type { StandardizedError } from '../utils/errorHandling';
-import { multiply } from '../utils/calculations';
+import { multiply, subtract, divide } from '../utils/calculations';
 import {
   handleError,
   validatePriceListStructure,
@@ -29,6 +29,82 @@ import {
 } from '../utils/common';
 import { logger } from '../utils/LoggerHelper';
 import Decimal from 'decimal.js';
+
+/**
+ * Hash index for O(1) pricelist lookups.
+ * Key = concatenated lowercase match field values separated by \0
+ */
+interface PricelistIndex {
+  /** Generic pricelist items (no customer ID set), keyed by match fields */
+  generic: Map<string, PriceListItem[]>;
+  /** Customer-specific items, keyed by customerID + \0 + match fields */
+  customerSpecific: Map<string, PriceListItem[]>;
+}
+
+/**
+ * Build a hash key from a record's match field values
+ */
+function buildMatchKey(
+  record: PriceListItem | UsageRecord,
+  fields: string[],
+): string | null {
+  const parts: string[] = [];
+  for (const field of fields) {
+    const value = getPropertyCaseInsensitive(record, field);
+    if (value === undefined || value === null) {
+      return null;
+    }
+    parts.push(String(value).toLowerCase());
+  }
+  return parts.join('\0');
+}
+
+/**
+ * Build hash indexes from the pricelist for O(1) lookups
+ */
+function buildPricelistIndex(
+  priceList: PriceListItem[],
+  matchFields: MatchFieldPair[],
+  customerPricingConfig?: CustomerPricingConfig,
+): PricelistIndex {
+  const index: PricelistIndex = {
+    generic: new Map(),
+    customerSpecific: new Map(),
+  };
+
+  const priceFieldNames = matchFields.map((mf) => mf.priceListField);
+  const customerIdField = customerPricingConfig?.customerIdPriceListField;
+  const customerPricingEnabled = customerPricingConfig?.useCustomerSpecificPricing === true;
+
+  for (const priceItem of priceList) {
+    const matchKey = buildMatchKey(priceItem, priceFieldNames);
+    if (matchKey === null) {
+      continue; // Skip items that don't have all match fields
+    }
+
+    // Determine if this is a customer-specific row
+    if (customerPricingEnabled && customerIdField) {
+      const customerId = getPropertyCaseInsensitive(priceItem, customerIdField);
+      const hasCustomerId =
+        customerId !== undefined && customerId !== null && String(customerId).trim() !== '';
+
+      if (hasCustomerId) {
+        const customerKey = `${String(customerId).toLowerCase()}\0${matchKey}`;
+        const existing = index.customerSpecific.get(customerKey) || [];
+        existing.push(priceItem);
+        index.customerSpecific.set(customerKey, existing);
+        continue;
+      }
+    }
+
+    // Generic (non-customer-specific) entry
+    const existing = index.generic.get(matchKey) || [];
+    existing.push(priceItem);
+    index.generic.set(matchKey, existing);
+  }
+
+  return index;
+}
 
 // Define extended UsageRecord type containing original record and match/error details
 type ExtendedUsageRecord = {
@@ -231,6 +307,16 @@ export async function pricelistLookup(
       `PriceList Lookup: Successfully extracted price list with ${priceList.length} items`,
     );
 
+    // Build hash index for O(1) lookups
+    const pricelistIndex = buildPricelistIndex(
+      priceList,
+      matchFields,
+      calculationConfig.customerPricingConfig,
+    );
+    logger.debug(
+      `PriceList Lookup: Built hash index - ${pricelistIndex.generic.size} generic keys, ${pricelistIndex.customerSpecific.size} customer-specific keys`,
+    );
+
     // Build usage batches: either a shared expression result or per-item extraction
     const sharedUsageData =
       typeof usageDataFieldName === 'string'
@@ -269,14 +355,20 @@ export async function pricelistLookup(
       const matchedRecords: CalculatedRecord[] = [];
 
       for (const usageRecord of usageData) {
-        // Find matching price records with enhanced function
-        const { match, isCustomerSpecificMatch, multipleCustomerMatches, customerMatchCount } =
-          findMatchingPriceRecords(
-            usageRecord,
-            priceList,
-            matchFields,
-            calculationConfig.customerPricingConfig,
-          );
+        // Find matching price records using hash index for O(1) lookup
+        const {
+          match,
+          genericMatch,
+          isCustomerSpecificMatch,
+          multipleCustomerMatches,
+          customerMatchCount,
+        } = findMatchingPriceRecords(
+          usageRecord,
+          priceList,
+          matchFields,
+          calculationConfig.customerPricingConfig,
+          pricelistIndex,
+        );
 
         // Check if we have a valid match
         if (match) {
@@ -284,6 +376,8 @@ export async function pricelistLookup(
           const calculated = calculateAmount(
             usageRecord,
             match,
+            genericMatch,
+            isCustomerSpecificMatch,
             calculationConfig,
             outputConfig,
             matchFields,
@@ -555,8 +649,12 @@ export async function pricelistLookup(
         }
 
         // Create a simplified error without context
+        const errorCode =
+          unmatchedRecord.matchReason === 'Multiple exact matches found'
+            ? ErrorCode.MULTIPLE_MATCHES_FOUND
+            : ErrorCode.NO_MATCH_FOUND;
         const errorWithoutContext = {
-          code: ErrorCode.NO_MATCH_FOUND,
+          code: errorCode,
           category: ErrorCategory.PROCESSING_ERROR,
           message: detailedMatchReason,
         };
@@ -652,8 +750,10 @@ function findMatchingPriceRecords(
   priceList: PriceListItem[],
   matchFields: MatchFieldPair[],
   customerPricingConfig?: CustomerPricingConfig,
+  pricelistIndex?: PricelistIndex,
 ): {
   match: PriceListItem | null;
+  genericMatch: PriceListItem | null;
   isCustomerSpecificMatch: boolean;
   multipleCustomerMatches: boolean;
   customerMatchCount: number;
@@ -666,6 +766,7 @@ function findMatchingPriceRecords(
     // Default return object
     const result = {
       match: null as PriceListItem | null,
+      genericMatch: null as PriceListItem | null,
       isCustomerSpecificMatch: false,
       multipleCustomerMatches: false,
       customerMatchCount: 0,
@@ -675,6 +776,75 @@ function findMatchingPriceRecords(
       return result;
     }
 
+    // Build usage match key (try usageField first, fallback to priceListField)
+    const usageFieldNames = matchFields.map((mf) => mf.usageField);
+    let usageKey = buildMatchKey(usageRecord, usageFieldNames);
+    if (usageKey === null) {
+      // Fallback: try using priceListField names on the usage record
+      const priceFieldNames = matchFields.map((mf) => mf.priceListField);
+      usageKey = buildMatchKey(usageRecord, priceFieldNames);
+    }
+
+    // Use hash index for O(1) lookup when available and key can be built
+    if (pricelistIndex && usageKey !== null) {
+      // First try customer-specific matching if enabled
+      if (customerPricingConfig?.useCustomerSpecificPricing) {
+        const customerIdUsageField = customerPricingConfig.customerIdUsageField;
+        const customerIdValue = getPropertyCaseInsensitive(usageRecord, customerIdUsageField);
+
+        if (customerIdValue !== undefined) {
+          logger.debug(
+            `PriceList Lookup: Performing customer-specific hash lookup with customer ID from field "${customerIdUsageField}"`,
+          );
+
+          const customerKey = `${String(customerIdValue).toLowerCase()}\0${usageKey}`;
+          const customerSpecificMatches = pricelistIndex.customerSpecific.get(customerKey) || [];
+
+          result.customerMatchCount = customerSpecificMatches.length;
+
+          if (customerSpecificMatches.length === 1) {
+            logger.debug('PriceList Lookup: Found exactly one customer-specific match via hash');
+            result.match = customerSpecificMatches[0];
+            result.isCustomerSpecificMatch = true;
+            // Find generic match for min sell price comparison
+            const genericMatches = pricelistIndex.generic.get(usageKey) || [];
+            result.genericMatch = genericMatches.length === 1 ? genericMatches[0] : null;
+            if (genericMatches.length > 1) {
+              logger.warn(
+                `PriceList Lookup: Found ${genericMatches.length} generic matches for min sell baseline - cannot determine standard price`,
+              );
+            }
+            return result;
+          }
+
+          if (customerSpecificMatches.length > 1) {
+            logger.warn(
+              `PriceList Lookup: Found ${customerSpecificMatches.length} customer-specific matches via hash, which is ambiguous`,
+            );
+            result.multipleCustomerMatches = true;
+            return result;
+          }
+
+          // No customer-specific match, fall through to generic matching
+          logger.debug(
+            'PriceList Lookup: No customer-specific match found via hash, falling back to generic matching',
+          );
+        }
+      }
+
+      // Generic matching via hash index
+      const genericMatches = pricelistIndex.generic.get(usageKey) || [];
+
+      if (genericMatches.length === 1) {
+        result.match = genericMatches[0];
+        return result;
+      }
+
+      // No match or multiple matches - return with no match
+      return result;
+    }
+
+    // Fallback: linear scan when index is unavailable or key couldn't be built
     // First try customer-specific matching if enabled
     if (customerPricingConfig?.useCustomerSpecificPricing) {
       const customerIdUsageField = customerPricingConfig.customerIdUsageField;
@@ -706,37 +876,7 @@ function findMatchingPriceRecords(
           }
 
           // Now check all other match fields
-          let allFieldsMatch = true;
-          for (const matchField of matchFields) {
-            // Use case-insensitive property lookup
-            const priceValue = getPropertyCaseInsensitive(priceItem, matchField.priceListField);
-            let usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
-            // Fallback: if usage field is missing, try the price list field name (common when usage already uses price list schema)
-            if (usageValue === undefined) {
-              usageValue = getPropertyCaseInsensitive(usageRecord, matchField.priceListField);
-            }
-
-            // If either value is undefined, this item doesn't match
-            if (priceValue === undefined || usageValue === undefined) {
-              allFieldsMatch = false;
-              break;
-            }
-
-            // Case insensitive comparison for string values
-            if (typeof priceValue === 'string' && typeof usageValue === 'string') {
-              if (priceValue.toLowerCase() !== usageValue.toLowerCase()) {
-                allFieldsMatch = false;
-                break;
-              }
-            } else if (priceValue !== usageValue) {
-              // Regular comparison for non-string values
-              allFieldsMatch = false;
-              break;
-            }
-          }
-
-          // If all fields matched, add to matches
-          if (allFieldsMatch) {
+          if (recordMatchesAllFields(priceItem, usageRecord, matchFields)) {
             customerSpecificMatches.push(priceItem);
           }
         }
@@ -749,6 +889,13 @@ function findMatchingPriceRecords(
           logger.debug('PriceList Lookup: Found exactly one customer-specific match');
           result.match = customerSpecificMatches[0];
           result.isCustomerSpecificMatch = true;
+          // Also find the generic (non-customer) match for min sell price comparison
+          result.genericMatch = findGenericMatch(
+            usageRecord,
+            priceList,
+            matchFields,
+            customerPricingConfig,
+          );
           return result;
         }
 
@@ -768,14 +915,13 @@ function findMatchingPriceRecords(
       }
     }
 
-    // Regular matching logic (similar to original)
+    // Regular matching logic (linear scan)
     const matchedItems: PriceListItem[] = [];
 
     // Determine if we should skip customer-specific rows during generic matching
     const customerSpecificEnabled = customerPricingConfig?.useCustomerSpecificPricing === true;
     const customerIdPriceListField = customerPricingConfig?.customerIdPriceListField;
 
-    // Iterate through each price list item to find matches
     for (const priceItem of priceList) {
       // If customer-specific pricing is enabled, ignore rows that contain a customer ID
       if (customerSpecificEnabled && customerIdPriceListField) {
@@ -793,39 +939,7 @@ function findMatchingPriceRecords(
         }
       }
 
-      let allFieldsMatch = true;
-
-      // Check each match field for this price item
-      for (const matchField of matchFields) {
-        // Use case-insensitive property lookup
-        const priceValue = getPropertyCaseInsensitive(priceItem, matchField.priceListField);
-        let usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
-        // Fallback: if usage field is missing, try the price list field name (common when usage already uses price list schema)
-        if (usageValue === undefined) {
-          usageValue = getPropertyCaseInsensitive(usageRecord, matchField.priceListField);
-        }
-
-        // If either value is undefined, this item doesn't match
-        if (priceValue === undefined || usageValue === undefined) {
-          allFieldsMatch = false;
-          break;
-        }
-
-        // Case insensitive comparison for string values
-        if (typeof priceValue === 'string' && typeof usageValue === 'string') {
-          if (priceValue.toLowerCase() !== usageValue.toLowerCase()) {
-            allFieldsMatch = false;
-            break;
-          }
-        } else if (priceValue !== usageValue) {
-          // Regular comparison for non-string values
-          allFieldsMatch = false;
-          break;
-        }
-      }
-
-      // If all fields matched, add to matches
-      if (allFieldsMatch) {
+      if (recordMatchesAllFields(priceItem, usageRecord, matchFields)) {
         matchedItems.push(priceItem);
       }
     }
@@ -848,11 +962,86 @@ function findMatchingPriceRecords(
 }
 
 /**
+ * Check if a price item matches all match fields against a usage record
+ */
+function recordMatchesAllFields(
+  priceItem: PriceListItem,
+  usageRecord: UsageRecord,
+  matchFields: MatchFieldPair[],
+): boolean {
+  for (const matchField of matchFields) {
+    const priceValue = getPropertyCaseInsensitive(priceItem, matchField.priceListField);
+    let usageValue = getPropertyCaseInsensitive(usageRecord, matchField.usageField);
+    // Fallback: if usage field is missing, try the price list field name
+    if (usageValue === undefined) {
+      usageValue = getPropertyCaseInsensitive(usageRecord, matchField.priceListField);
+    }
+
+    if (priceValue === undefined || usageValue === undefined) {
+      return false;
+    }
+
+    if (typeof priceValue === 'string' && typeof usageValue === 'string') {
+      if (priceValue.toLowerCase() !== usageValue.toLowerCase()) {
+        return false;
+      }
+    } else if (priceValue !== usageValue) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Find the generic (non-customer-specific) match for a usage record.
+ * Used to retrieve the standard pricelist price for min sell enforcement.
+ */
+function findGenericMatch(
+  usageRecord: UsageRecord,
+  priceList: PriceListItem[],
+  matchFields: MatchFieldPair[],
+  customerPricingConfig?: CustomerPricingConfig,
+): PriceListItem | null {
+  const customerIdPriceListField = customerPricingConfig?.customerIdPriceListField;
+  const matchedItems: PriceListItem[] = [];
+
+  for (const priceItem of priceList) {
+    // Skip customer-specific rows
+    if (customerIdPriceListField) {
+      const priceCustomerId = getPropertyCaseInsensitive(priceItem, customerIdPriceListField);
+      const hasCustomerId =
+        priceCustomerId !== undefined &&
+        priceCustomerId !== null &&
+        String(priceCustomerId).trim() !== '';
+      if (hasCustomerId) {
+        continue;
+      }
+    }
+
+    if (recordMatchesAllFields(priceItem, usageRecord, matchFields)) {
+      matchedItems.push(priceItem);
+    }
+  }
+
+  if (matchedItems.length === 1) {
+    return matchedItems[0];
+  }
+  if (matchedItems.length > 1) {
+    logger.warn(
+      `PriceList Lookup: Found ${matchedItems.length} generic matches for min sell baseline - cannot determine standard price`,
+    );
+  }
+  return null;
+}
+
+/**
  * Calculate cost and price amounts based on usage quantity and price list rates
  */
 function calculateAmount(
   usageRecord: UsageRecord,
   priceRecord: PriceListItem,
+  genericPriceRecord: PriceListItem | null,
+  isCustomerSpecificMatch: boolean,
   calculationConfig: CalculationConfig,
   outputConfig: OutputFieldConfig,
   matchFields: MatchFieldPair[],
@@ -872,21 +1061,91 @@ function calculateAmount(
     outputRecord.customerId = '';
 
     // Get quantity value using case-insensitive property lookup
-    const quantity = Number(
-      getPropertyCaseInsensitive(usageRecord, calculationConfig.quantityField) || 0,
-    );
+    const rawQuantity = getPropertyCaseInsensitive(usageRecord, calculationConfig.quantityField);
+    if (rawQuantity === undefined || rawQuantity === null) {
+      throw new Error(
+        `Quantity field "${calculationConfig.quantityField}" not found in usage record`,
+      );
+    }
+    const quantity = Number(rawQuantity);
+    if (!Number.isFinite(quantity)) {
+      throw new Error(
+        `Quantity field "${calculationConfig.quantityField}" contains non-numeric value: ${String(rawQuantity)}`,
+      );
+    }
 
     // Get cost and sell price values using case-insensitive property lookup
-    const costPrice = Number(
-      getPropertyCaseInsensitive(priceRecord, calculationConfig.costPriceField) || 0,
+    const rawCostPrice = getPropertyCaseInsensitive(
+      priceRecord,
+      calculationConfig.costPriceField,
     );
-    const sellPrice = Number(
-      getPropertyCaseInsensitive(priceRecord, calculationConfig.sellPriceField) || 0,
+    if (rawCostPrice === undefined || rawCostPrice === null) {
+      throw new Error(
+        `Cost price field "${calculationConfig.costPriceField}" not found in price record`,
+      );
+    }
+    const costPrice = Number(rawCostPrice);
+    if (!Number.isFinite(costPrice)) {
+      throw new Error(
+        `Cost price field "${calculationConfig.costPriceField}" contains non-numeric value: ${String(rawCostPrice)}`,
+      );
+    }
+
+    const rawSellPrice = getPropertyCaseInsensitive(
+      priceRecord,
+      calculationConfig.sellPriceField,
     );
+    if (rawSellPrice === undefined || rawSellPrice === null) {
+      throw new Error(
+        `Sell price field "${calculationConfig.sellPriceField}" not found in price record`,
+      );
+    }
+    const sellPrice = Number(rawSellPrice);
+    if (!Number.isFinite(sellPrice)) {
+      throw new Error(
+        `Sell price field "${calculationConfig.sellPriceField}" contains non-numeric value: ${String(rawSellPrice)}`,
+      );
+    }
+
+    // Enforce minimum sell price if configured (only for customer-specific matches)
+    let effectiveSellPrice = sellPrice;
+    if (
+      calculationConfig.minSellPriceConfig?.enabled &&
+      calculationConfig.customerPricingConfig?.useCustomerSpecificPricing &&
+      isCustomerSpecificMatch
+    ) {
+      if (genericPriceRecord) {
+        const rawStandardSellPrice = getPropertyCaseInsensitive(
+          genericPriceRecord,
+          calculationConfig.sellPriceField,
+        );
+        const standardSellPrice =
+          rawStandardSellPrice !== undefined && rawStandardSellPrice !== null
+            ? Number(rawStandardSellPrice)
+            : 0;
+        if (sellPrice < standardSellPrice) {
+          effectiveSellPrice = standardSellPrice;
+          outputRecord.minSellEnforced = true;
+          outputRecord.standardSellPrice = standardSellPrice;
+          outputRecord.originalCustomerSellPrice = sellPrice;
+        }
+      } else {
+        logger.warn(
+          'PriceList Lookup: Min sell enforcement enabled but no generic (standard) pricelist row found for comparison. Customer-specific price used as-is.',
+        );
+      }
+    }
 
     // Calculate cost and sell amounts
     let costAmount = multiply(quantity, costPrice);
-    let sellAmount = multiply(quantity, sellPrice);
+    let sellAmount = multiply(quantity, effectiveSellPrice);
+
+    // Apply FX conversion if configured (rate validated at config level in UsageBilling.node.ts)
+    if (calculationConfig.fxConversionConfig?.enabled) {
+      const fxRate = calculationConfig.fxConversionConfig.fxRate;
+      costAmount = multiply(costAmount, fxRate);
+      sellAmount = multiply(sellAmount, fxRate);
+    }
 
     // Apply rounding if enabled (roundingDirection is not 'none')
     if (calculationConfig.roundingDirection && calculationConfig.roundingDirection !== 'none') {
@@ -940,15 +1199,63 @@ function calculateAmount(
     if (outputConfig.includeCalculationFields !== false) {
       outputRecord[`${calcPrefix}${calculationConfig.quantityField}`] = quantity;
       outputRecord[`${calcPrefix}${calculationConfig.costPriceField}`] = costPrice;
-      outputRecord[`${calcPrefix}${calculationConfig.sellPriceField}`] = sellPrice;
+      outputRecord[`${calcPrefix}${calculationConfig.sellPriceField}`] = effectiveSellPrice;
     }
 
     // Add calculated amounts to output
     outputRecord[costAmountFieldName] = costAmount;
     outputRecord[sellAmountFieldName] = sellAmount;
 
+    // Add FX conversion metadata to output
+    if (calculationConfig.fxConversionConfig?.enabled) {
+      outputRecord[`${calcPrefix}fxRate`] = calculationConfig.fxConversionConfig.fxRate;
+      outputRecord[`${calcPrefix}currencyCode`] = calculationConfig.fxConversionConfig.currencyCode;
+    }
+
+    // Add margin/profit fields if enabled
+    if (calculationConfig.includeMarginFields) {
+      const margin = subtract(sellAmount, costAmount);
+      outputRecord[`${calcPrefix}margin`] = margin;
+
+      // margin_percent = (sell - cost) / sell × 100; null if sell = 0
+      if (sellAmount !== 0) {
+        try {
+          outputRecord[`${calcPrefix}margin_percent`] = multiply(divide(margin, sellAmount), 100);
+        } catch {
+          outputRecord[`${calcPrefix}margin_percent`] = null;
+        }
+      } else {
+        outputRecord[`${calcPrefix}margin_percent`] = null;
+      }
+
+      // markup_percent = (sell - cost) / cost × 100; null if cost = 0
+      if (costAmount !== 0) {
+        try {
+          outputRecord[`${calcPrefix}markup_percent`] = multiply(divide(margin, costAmount), 100);
+        } catch {
+          outputRecord[`${calcPrefix}markup_percent`] = null;
+        }
+      } else {
+        outputRecord[`${calcPrefix}markup_percent`] = null;
+      }
+    }
+
     // Add any additional configured output fields
     addExtraFieldsToOutput(outputRecord, priceRecord, usageRecord, outputConfig);
+
+    // Add pass-through fields (copied verbatim from usage record, no prefix)
+    if (outputConfig.passThroughFields) {
+      const fieldNames = outputConfig.passThroughFields
+        .split(',')
+        .map((f) => f.trim())
+        .filter((f) => f.length > 0);
+      for (const fieldName of fieldNames) {
+        const value = getPropertyCaseInsensitive(usageRecord, fieldName);
+        if (value !== undefined) {
+          outputRecord[fieldName] = value as string | number | boolean | null;
+        }
+      }
+    }
 
     // Sort all fields alphabetically for consistent output ordering
     return sortObjectKeysAlphabetically(outputRecord);

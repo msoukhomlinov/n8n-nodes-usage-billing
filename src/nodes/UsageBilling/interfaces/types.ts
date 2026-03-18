@@ -31,6 +31,10 @@ export interface CalculatedRecord {
   isCustomPricing?: boolean;
   customerIdField?: string;
   customerId?: string | number;
+  // Min sell enforcement fields
+  minSellEnforced?: boolean;
+  standardSellPrice?: number;
+  originalCustomerSellPrice?: number;
   [key: string]: string | number | boolean | null | undefined;
 }
 
@@ -62,6 +66,22 @@ export interface MatchFieldPair {
 }
 
 /**
+ * Configuration for FX (foreign exchange) conversion
+ */
+export interface FxConversionConfig {
+  enabled: boolean;
+  fxRate: number;
+  currencyCode: string;
+}
+
+/**
+ * Configuration for minimum sell price enforcement
+ */
+export interface MinSellPriceConfig {
+  enabled: boolean;
+}
+
+/**
  * Configuration for price calculation
  */
 export interface CalculationConfig {
@@ -70,7 +90,10 @@ export interface CalculationConfig {
   sellPriceField: string;
   roundingDirection?: 'up' | 'down' | 'none';
   decimalPlaces?: number;
+  includeMarginFields?: boolean;
   customerPricingConfig?: CustomerPricingConfig;
+  fxConversionConfig?: FxConversionConfig;
+  minSellPriceConfig?: MinSellPriceConfig;
 }
 
 /**
@@ -95,6 +118,8 @@ export interface OutputFieldConfig {
   // Calculated amount field names
   calculatedCostAmountField?: string;
   calculatedSellAmountField?: string;
+  // Pass-through fields (comma-separated field names copied verbatim from usage records)
+  passThroughFields?: string;
 }
 
 /**

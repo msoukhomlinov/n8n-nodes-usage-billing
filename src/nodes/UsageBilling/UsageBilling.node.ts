@@ -66,6 +66,8 @@ export class UsageBilling implements INodeType {
           sellPriceField: (calculationConfigParam.sellPriceField as string) || 'price',
           roundingDirection:
             (calculationConfigParam.roundingDirection as 'up' | 'down' | 'none') || 'none',
+          decimalPlaces: calculationConfigParam.decimalPlaces as number | undefined,
+          includeMarginFields: (calculationConfigParam.includeMarginFields as boolean) || false,
         };
 
         // Get customer pricing configuration (now a top-level parameter)
@@ -81,6 +83,44 @@ export class UsageBilling implements INodeType {
               (customerPricingParam.customerIdPriceListField as string) || 'customerId',
             customerIdUsageField:
               (customerPricingParam.customerIdUsageField as string) || 'customerId',
+          };
+        }
+
+        // Get FX conversion configuration
+        const fxConversionParam = this.getNodeParameter('fxConversionConfig', 0, {
+          enabled: false,
+        }) as IDataObject;
+
+        if (fxConversionParam.enabled === true) {
+          const fxRate = Number(fxConversionParam.fxRate);
+          if (!Number.isFinite(fxRate) || fxRate <= 0) {
+            throw new NodeOperationError(
+              this.getNode(),
+              'FX Conversion is enabled but FX Rate is missing or invalid. Provide a positive number.',
+            );
+          }
+          const currencyCode = ((fxConversionParam.currencyCode as string) || '').trim();
+          if (!currencyCode) {
+            throw new NodeOperationError(
+              this.getNode(),
+              'FX Conversion is enabled but Target Currency Code is empty.',
+            );
+          }
+          calculationConfig.fxConversionConfig = {
+            enabled: true,
+            fxRate,
+            currencyCode,
+          };
+        }
+
+        // Get min sell price configuration
+        const minSellPriceParam = this.getNodeParameter('minSellPriceConfig', 0, {
+          enabled: false,
+        }) as IDataObject;
+
+        if (minSellPriceParam.enabled === true) {
+          calculationConfig.minSellPriceConfig = {
+            enabled: true,
           };
         }
 
@@ -124,6 +164,7 @@ export class UsageBilling implements INodeType {
           // Add calculated amount field names
           calculatedCostAmountField: outputFieldsConfigParam.calculatedCostAmountField as string,
           calculatedSellAmountField: outputFieldsConfigParam.calculatedSellAmountField as string,
+          passThroughFields: (outputFieldsConfigParam.passThroughFields as string) || '',
         };
 
         // Extract output fields from the parameter (only in manual mode)

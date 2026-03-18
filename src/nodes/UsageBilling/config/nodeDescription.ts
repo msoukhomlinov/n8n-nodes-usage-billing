@@ -202,6 +202,85 @@ export const nodeDescription: INodeTypeDescription = {
       ],
     },
 
+    // FX Conversion Configuration
+    {
+      displayName: 'FX Conversion',
+      name: 'fxConversionConfig',
+      type: 'collection',
+      placeholder: 'Configure FX Conversion',
+      default: {},
+      displayOptions: {
+        show: {
+          operation: ['matchUsageAndCalculate'],
+        },
+      },
+      options: [
+        {
+          displayName: 'Enable FX Conversion',
+          name: 'enabled',
+          type: 'boolean',
+          default: false,
+          description:
+            'Convert calculated amounts from source currency to target currency using a fixed exchange rate',
+        },
+        {
+          displayName: 'FX Rate',
+          name: 'fxRate',
+          type: 'number',
+          default: 1,
+          typeOptions: {
+            minValue: 0.000001,
+            numberPrecision: 6,
+          },
+          description: 'Exchange rate to multiply amounts by (e.g. 1.62 for USD → AUD)',
+          displayOptions: {
+            show: {
+              enabled: [true],
+            },
+          },
+        },
+        {
+          displayName: 'Target Currency Code',
+          name: 'currencyCode',
+          type: 'string',
+          default: 'AUD',
+          description:
+            'ISO 4217 currency code for the converted amounts. Added to output for reference.',
+          displayOptions: {
+            show: {
+              enabled: [true],
+            },
+          },
+        },
+      ],
+    },
+
+    // Minimum Sell Price Enforcement Configuration
+    {
+      displayName: 'Minimum Sell Price Enforcement',
+      name: 'minSellPriceConfig',
+      type: 'collection',
+      placeholder: 'Configure Min Sell Price',
+      default: {},
+      displayOptions: {
+        show: {
+          operation: ['matchUsageAndCalculate'],
+        },
+      },
+      description:
+        'When customer-specific pricing is active, prevents the customer sell price from being lower than the standard pricelist sell price',
+      options: [
+        {
+          displayName: 'Enforce Minimum Sell Price',
+          name: 'enabled',
+          type: 'boolean',
+          default: false,
+          description:
+            'When enabled, if a customer-specific sell price is lower than the standard pricelist sell price, the standard price is used instead. Only applies when customer-specific pricing is active.',
+        },
+      ],
+    },
+
     // Calculation Configuration
     {
       displayName: 'Calculation Settings',
@@ -278,6 +357,14 @@ export const nodeDescription: INodeTypeDescription = {
           default: 'none',
           description:
             'How to round the calculated amounts (applies to both cost and sell calculations)',
+        },
+        {
+          displayName: 'Include Margin Fields',
+          name: 'includeMarginFields',
+          type: 'boolean',
+          default: false,
+          description:
+            'When enabled, adds calc_margin (sell - cost), calc_margin_percent ((sell - cost) / sell × 100), and calc_markup_percent ((sell - cost) / cost × 100) to the output',
         },
         {
           displayName: 'Decimal Places',
@@ -394,6 +481,15 @@ export const nodeDescription: INodeTypeDescription = {
           type: 'string',
           default: 'calc_sell_amount',
           description: 'Name of the field for the calculated sell amount in the output',
+        },
+        {
+          displayName: 'Pass-Through Fields',
+          name: 'passThroughFields',
+          type: 'string',
+          default: '',
+          placeholder: 'startDate,endDate,customerName,accountName',
+          description:
+            'Comma-separated list of usage record field names to copy verbatim (no prefix) to the output. Useful for preserving billing period dates and identifiers.',
         },
       ],
       description: 'Configure automatic field inclusion and naming in the output records',

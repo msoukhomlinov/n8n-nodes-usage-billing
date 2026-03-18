@@ -7,6 +7,7 @@ import type {
   OutputFieldConfig,
 } from '../interfaces';
 import _ from 'lodash';
+import { logger } from './LoggerHelper';
 
 /**
  * Helper function to get a property from an object case-insensitively
@@ -51,7 +52,10 @@ export function normaliseDataInput<T>(input: unknown, fallbackData?: IDataObject
     if (looksJson) {
       try {
         data = JSON.parse(trimmed);
-      } catch {
+      } catch (parseError) {
+        logger.warn(
+          `normaliseDataInput: Failed to parse JSON input: ${(parseError as Error).message}`,
+        );
         data = [];
       }
     } else if (fallbackData) {

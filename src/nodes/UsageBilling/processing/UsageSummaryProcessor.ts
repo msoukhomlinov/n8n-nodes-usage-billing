@@ -255,14 +255,14 @@ function getNumberValue(record: IDataObject, fieldName: string): number | undefi
       }
     }
 
-    // Value not a valid number
+    // Value not a valid number — skip rather than silently contribute 0 to totals
     logger.warn(`Usage Summary: Field '${fieldName}' contains non-numeric value: ${String(value)}`);
-    return 0;
+    return undefined;
   } catch (error) {
     logger.error(
       `Usage Summary: Error extracting number value for field '${fieldName}': ${(error as Error).message}`,
       error as Error,
     );
-    return 0;
+    return undefined;
   }
 }

@@ -2,6 +2,24 @@
 
 All notable changes to the n8n-nodes-usage-billing node will be documented in this file.
 
+## [0.5.0] - 2026-03-19
+
+### Features
+- **FX Conversion**: Convert calculated cost and sell amounts from source currency to a target currency using a configurable exchange rate. Adds `calc_fxRate` and `calc_currencyCode` to output records. Strict validation rejects invalid or missing rates when enabled.
+- **Minimum Sell Price Enforcement**: When customer-specific pricing is active, prevents the customer sell price from falling below the standard pricelist sell price. Outputs `minSellEnforced`, `standardSellPrice`, and `originalCustomerSellPrice` when enforcement triggers.
+
+### Processing Order
+Min sell enforcement → quantity × price → FX conversion → rounding → output assembly.
+
+### Fixes
+- **Missing/invalid billing fields now error instead of silently producing $0**: Quantity, cost price, and sell price fields that are missing or non-numeric now throw descriptive errors instead of silently defaulting to zero.
+- **Decimal places setting now applied**: The `decimalPlaces` UI parameter was not being extracted — rounding always used 1 decimal place regardless of user configuration.
+- **Multiple-match errors now use correct error code**: Records matching multiple pricelist items now emit `MULTIPLE_MATCHES_FOUND` instead of incorrectly reporting `NO_MATCH_FOUND`.
+- **Usage Summary no longer silently zeros non-numeric values**: `getNumberValue` now returns `undefined` for non-numeric fields instead of `0`, preventing silent pollution of totals.
+- **JSON parse failures now logged**: Malformed JSON input to `normaliseDataInput` now logs a warning instead of silently returning an empty array.
+- **Min sell enforcement no longer warns on generic matches**: The false warning that fired on every generic match when min sell was enabled has been eliminated by checking `isCustomerSpecificMatch`.
+- Added missing MIT LICENSE file.
+
 ## [0.4.3] - 2025-12-14
 
 ### Fixes

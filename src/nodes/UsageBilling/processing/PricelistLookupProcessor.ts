@@ -1187,7 +1187,7 @@ function calculateAmount(
 
     // Include quantity and price fields if calculation fields are enabled
     if (outputConfig.includeCalculationFields !== false) {
-      outputRecord[`${calcPrefix}${calculationConfig.quantityField}`] = quantity;
+      outputRecord[`${calcPrefix}${calculationConfig.quantityField}`] = applyRounding(quantity, calculationConfig);
       outputRecord[`${calcPrefix}${calculationConfig.costPriceField}`] = costPrice;
       outputRecord[`${calcPrefix}${calculationConfig.sellPriceField}`] = effectiveSellPrice;
     }

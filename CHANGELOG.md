@@ -2,10 +2,15 @@
 
 All notable changes to the n8n-nodes-usage-billing node will be documented in this file.
 
+## [0.5.3] - 2026-03-19
+
+### Fixes
+- **Rounding now applied to quantity field**: The `calc_<quantityField>` output was not rounded when rounding was enabled.
+
 ## [0.5.2] - 2026-03-19
 
 ### Fixes
-- **Rounding now applied to margin fields**: `calc_margin`, `calc_margin_percent`, and `calc_markup_percent` were not being rounded even when rounding was enabled. All calculated output fields now respect the configured rounding direction and decimal places.
+- **Rounding now applied to margin fields**: `calc_margin`, `calc_margin_percent`, and `calc_markup_percent` were not rounded when rounding was enabled. All margin/markup output fields now respect the configured rounding direction and decimal places.
 
 ### Internal
 - Extracted reusable `applyRounding()` helper in `PricelistLookupProcessor`, eliminating duplicated rounding logic.

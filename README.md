@@ -22,6 +22,8 @@ This n8n community node provides usage-based billing calculation functionality. 
 - **Customer-Specific Pricing**: Support for customer-specific pricing rules
 - **FX Conversion**: Convert calculated amounts to a target currency using a fixed exchange rate
 - **Minimum Sell Price Enforcement**: Prevent customer-specific sell prices from falling below the standard pricelist price
+- **Margin/Profit Calculation**: Derive margin, margin %, and markup % from cost and sell amounts
+- **Pass-Through Fields**: Copy billing period dates and identifiers from usage records to output without prefixing
 - **Calculation Options**: Configure rounding and decimal precision
 - **Output Customization**: Control which fields appear in the output with automatic or manual field inclusion
 - **Usage Summarization**: Generate summaries by grouping and totaling fields
@@ -63,7 +65,9 @@ Generate summaries of usage and costs:
 - **Customer-Specific Pricing**: Options for customer-specific price entries with customer ID matching
 - **FX Conversion**: Enable currency conversion with a fixed exchange rate and target currency code (e.g. USD → AUD at 1.62). Adds `calc_fxRate` and `calc_currencyCode` to output.
 - **Minimum Sell Price Enforcement**: When customer-specific pricing is active, ensures the sell price is not lower than the standard pricelist price. Adds `minSellEnforced`, `standardSellPrice`, and `originalCustomerSellPrice` to output when triggered.
+- **Margin/Profit Calculation**: Enable `Include Margin Fields` in Calculation Settings to add `calc_margin`, `calc_margin_percent`, and `calc_markup_percent` to output. Division-by-zero cases (cost=0 or sell=0) output `null`.
 - **Output Field Configuration**: Automatic inclusion settings for match fields, calculation fields, and field prefixes
+- **Pass-Through Fields**: In Output Field Configuration, specify a comma-separated list of usage record field names (e.g. `startDate,endDate,customerName`) to copy verbatim to output without any prefix.
 - **Output Fields**: Control which additional fields to include in output:
   - **Automatic Mode**: Automatically includes all fields from both pricelist and usage data with required prefixes
   - **Manual Mode**: Manually specify individual fields with source and target field names

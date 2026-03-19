@@ -121,6 +121,23 @@ type ExtendedUsageRecord = {
 };
 
 /**
+ * Apply rounding to a value based on the calculation config.
+ * Returns the value unchanged if rounding is disabled.
+ */
+function applyRounding(value: number, calculationConfig: CalculationConfig): number {
+  if (!calculationConfig.roundingDirection || calculationConfig.roundingDirection === 'none') {
+    return value;
+  }
+  const decimalPlaces =
+    calculationConfig.decimalPlaces !== undefined ? calculationConfig.decimalPlaces : 1;
+  const decimalValue = new Decimal(value);
+  if (calculationConfig.roundingDirection === 'up') {
+    return decimalValue.toDecimalPlaces(decimalPlaces, Decimal.ROUND_UP).toNumber();
+  }
+  return decimalValue.toDecimalPlaces(decimalPlaces, Decimal.ROUND_DOWN).toNumber();
+}
+
+/**
  * Process usage records against a price list, performing exact matching and calculation
  */
 export async function pricelistLookup(
@@ -1147,36 +1164,9 @@ function calculateAmount(
       sellAmount = multiply(sellAmount, fxRate);
     }
 
-    // Apply rounding if enabled (roundingDirection is not 'none')
-    if (calculationConfig.roundingDirection && calculationConfig.roundingDirection !== 'none') {
-      const decimalPlaces =
-        calculationConfig.decimalPlaces !== undefined ? calculationConfig.decimalPlaces : 1;
-      const roundingDirection = calculationConfig.roundingDirection;
-
-      // Round cost amount
-      const decimalCostAmount = new Decimal(costAmount);
-      if (roundingDirection === 'up') {
-        // Round up (ceiling) to specified decimal places
-        costAmount = decimalCostAmount.toDecimalPlaces(decimalPlaces, Decimal.ROUND_UP).toNumber();
-      } else {
-        // Round down (floor) to specified decimal places
-        costAmount = decimalCostAmount
-          .toDecimalPlaces(decimalPlaces, Decimal.ROUND_DOWN)
-          .toNumber();
-      }
-
-      // Round sell amount
-      const decimalSellAmount = new Decimal(sellAmount);
-      if (roundingDirection === 'up') {
-        // Round up (ceiling) to specified decimal places
-        sellAmount = decimalSellAmount.toDecimalPlaces(decimalPlaces, Decimal.ROUND_UP).toNumber();
-      } else {
-        // Round down (floor) to specified decimal places
-        sellAmount = decimalSellAmount
-          .toDecimalPlaces(decimalPlaces, Decimal.ROUND_DOWN)
-          .toNumber();
-      }
-    }
+    // Apply rounding if enabled
+    costAmount = applyRounding(costAmount, calculationConfig);
+    sellAmount = applyRounding(sellAmount, calculationConfig);
 
     // Get prefixes from outputConfig (with defaults)
     const pricelistPrefix = outputConfig.pricelistFieldPrefix || 'price_';
@@ -1214,13 +1204,16 @@ function calculateAmount(
 
     // Add margin/profit fields if enabled
     if (calculationConfig.includeMarginFields) {
-      const margin = subtract(sellAmount, costAmount);
+      const margin = applyRounding(subtract(sellAmount, costAmount), calculationConfig);
       outputRecord[`${calcPrefix}margin`] = margin;
 
       // margin_percent = (sell - cost) / sell × 100; null if sell = 0
       if (sellAmount !== 0) {
         try {
-          outputRecord[`${calcPrefix}margin_percent`] = multiply(divide(margin, sellAmount), 100);
+          outputRecord[`${calcPrefix}margin_percent`] = applyRounding(
+            multiply(divide(margin, sellAmount), 100),
+            calculationConfig,
+          );
         } catch {
           outputRecord[`${calcPrefix}margin_percent`] = null;
         }
@@ -1231,7 +1224,10 @@ function calculateAmount(
       // markup_percent = (sell - cost) / cost × 100; null if cost = 0
       if (costAmount !== 0) {
         try {
-          outputRecord[`${calcPrefix}markup_percent`] = multiply(divide(margin, costAmount), 100);
+          outputRecord[`${calcPrefix}markup_percent`] = applyRounding(
+            multiply(divide(margin, costAmount), 100),
+            calculationConfig,
+          );
         } catch {
           outputRecord[`${calcPrefix}markup_percent`] = null;
         }

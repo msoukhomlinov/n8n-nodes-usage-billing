@@ -2,6 +2,21 @@
 
 All notable changes to the n8n-nodes-usage-billing node will be documented in this file.
 
+## [0.5.2] - 2026-03-19
+
+### Fixes
+- **Rounding now applied to margin fields**: `calc_margin`, `calc_margin_percent`, and `calc_markup_percent` were not being rounded even when rounding was enabled. All calculated output fields now respect the configured rounding direction and decimal places.
+
+### Internal
+- Extracted reusable `applyRounding()` helper in `PricelistLookupProcessor`, eliminating duplicated rounding logic.
+
+## [0.5.1] - 2026-03-19
+
+### Features
+- **Margin/Profit Calculation**: New `Include Margin Fields` toggle in Calculation Settings. When enabled, outputs `calc_margin` (sell − cost), `calc_margin_percent` ((sell − cost) / sell × 100), and `calc_markup_percent` ((sell − cost) / cost × 100). Division-by-zero cases output `null`.
+- **Pass-Through Fields**: New `Pass-Through Fields` option in Output Field Configuration. Comma-separated list of usage record field names copied verbatim (no prefix) to output — solves the problem of billing period dates and identifiers being stripped or prefixed.
+- **Hash-Based Matching**: Pricelist is now pre-indexed into a hash map for O(1) lookups. No configuration needed — same results, significantly faster on large datasets.
+
 ## [0.5.0] - 2026-03-19
 
 ### Features
